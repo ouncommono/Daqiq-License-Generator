@@ -1,23 +1,28 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod commands;
+mod rtl;
+mod state;
+mod theme;
+mod views;
 
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
 
-use commands::{get_app_data_db_path, AppState};
+use iced::widget::{column, container};
+use iced::{window, Element, Font, Length, Size, Task, Theme};
+use serde_json::json;
+
 use daqiq_lic_core::{
     canonicalize_payload, gregorian_to_jalali, jalali_to_gregorian, validate_hwid,
     verify_license_envelope, CustomerInfo, KeyVault, LicenseEnvelope, LicensePayload, RegistryDb,
     ALL_FEATURE_KEYS, DEFAULT_KEY_ID, DEFAULT_PRODUCT_ID, DEFAULT_PROD_PUBLIC_KEY,
 };
-use serde_json::json;
+use state::{ActiveTab, AppState, Message, Preset, ThemeMode};
+use theme::{dark_theme, light_theme};
 
 fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
-    println!("[SELF-TEST] Starting headless cryptographic & subsystem verification...");
+    println!("[SELF-TEST] Starting headless cryptographic, subsystem & GUI verification...");
 
     // Test 1: Golden Vector SHA-256 and Signature Verification
     let raw_pub_b64 = "tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=";
@@ -114,12 +119,40 @@ fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
         return Err("SQLite in-memory registry failed insertion/query".to_string());
     }
 
-    println!("[SELF-TEST] All 5 internal checks passed successfully!");
+    // Test 6: Headless GUI State Machine & Message Reducer Tests
+    let mut state = AppState::new();
+    state.active_key_id = vault.key_id.clone();
+    state.active_public_key = vault.public_key_b64.clone();
+    state.vault = Some(vault);
+    state.customer_name = "مشتری تستی".to_string();
+    state.hwid_text = "fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e".to_string();
+    state.update(Message::HwidTextChanged(state.hwid_text.clone()));
+    state.update(Message::ApplyPreset(Preset::Standard));
+    state.update(Message::GenerateLicenseClicked);
+
+    if state.generated_envelope.is_none() || state.generated_json.is_empty() {
+        return Err("Headless GUI state machine failed to generate license!".to_string());
+    }
+
+    state.update(Message::SwitchTab(ActiveTab::Ledger));
+    state.update(Message::ToggleTheme);
+    state.update(Message::SwitchTab(ActiveTab::Inspector));
+    state.inspect_json = state.generated_json.clone();
+    state.update(Message::VerifyInspectClicked);
+    if let Some((valid, _, _)) = &state.inspect_status {
+        if !valid {
+            return Err("Headless inspector verification of generated license failed!".to_string());
+        }
+    } else {
+        return Err("Inspector status not populated!".to_string());
+    }
+
+    println!("[SELF-TEST] All 6 internal checks (including headless GUI reducer) passed!");
 
     let report = json!({
         "status": "ok",
         "app_name": "Daqiq License Generator Studio",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "target_product": DEFAULT_PRODUCT_ID,
         "default_key_id": DEFAULT_KEY_ID,
         "default_public_key": DEFAULT_PROD_PUBLIC_KEY,
@@ -128,7 +161,8 @@ fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
             {"name": "hwid_unicode_cleaner_and_validation", "passed": true},
             {"name": "jalali_calendar_roundtrip", "passed": true},
             {"name": "encrypted_vault_roundtrip", "passed": true},
-            {"name": "sqlite_registry_operations", "passed": true}
+            {"name": "sqlite_registry_operations", "passed": true},
+            {"name": "gui_state_machine_reducer", "passed": true}
         ]
     });
 
@@ -143,7 +177,41 @@ fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
-fn main() {
+impl AppState {
+    fn update_task(&mut self, message: Message) -> Task<Message> {
+        self.update(message);
+        Task::none()
+    }
+
+    fn view_app(&self) -> Element<'_, Message> {
+        let content: Element<'_, Message> = match self.active_tab {
+            ActiveTab::Generator => views::generator::view_generator(self),
+            ActiveTab::Ledger => views::registry::view_registry(self),
+            ActiveTab::Inspector => views::inspector::view_inspector(self),
+            ActiveTab::Vault => views::vault::view_vault(self),
+        };
+
+        column![
+            views::header::view_header(self),
+            container(content)
+                .height(Length::Fill)
+                .width(Length::Fill),
+        ]
+        .height(Length::Fill)
+        .width(Length::Fill)
+        .into()
+    }
+
+    fn theme_app(&self) -> Theme {
+        if self.theme_mode == ThemeMode::Dark {
+            dark_theme()
+        } else {
+            light_theme()
+        }
+    }
+}
+
+fn main() -> iced::Result {
     let args: Vec<String> = env::args().collect();
 
     // Check for --self-test flag
@@ -164,38 +232,29 @@ fn main() {
         }
     }
 
-    let db_path = get_app_data_db_path();
-    let db = match RegistryDb::open(&db_path) {
-        Ok(d) => d,
-        Err(_) => RegistryDb::open_in_memory().expect("In-memory database fallback must succeed"),
+    // Check for --version flag
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("1.2.0");
+        std::process::exit(0);
+    }
+
+    let window_settings = window::Settings {
+        size: Size::new(1280.0, 850.0),
+        min_size: Some(Size::new(1024.0, 700.0)),
+        position: window::Position::Centered,
+        ..Default::default()
     };
 
-    let state = AppState {
-        vault: Mutex::new(None),
-        db: Mutex::new(db),
-    };
-
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .manage(state)
-        .invoke_handler(tauri::generate_handler![
-            commands::get_vault_status,
-            commands::create_vault,
-            commands::unlock_vault,
-            commands::lock_vault,
-            commands::generate_license,
-            commands::verify_license,
-            commands::simulate_validation,
-            commands::list_registry_records,
-            commands::search_registry_records,
-            commands::export_registry_csv,
-            commands::clean_and_parse_hwids,
-            commands::parse_daqreq_file,
-            commands::convert_jalali_to_gregorian,
-            commands::convert_gregorian_to_jalali,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    iced::application(AppState::new, AppState::update_task, AppState::view_app)
+        .title("استودیو صدور لایسنس نرم‌افزار دقیق (نسخه ۱.۲.۰ - Pure Native Rust)")
+        .theme(AppState::theme_app)
+        .window(window_settings)
+        .font(include_bytes!("../assets/fonts/Vazirmatn-Regular.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/Vazirmatn-Bold.ttf").as_slice())
+        .font(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice())
+        .default_font(Font {
+            family: iced::font::Family::Name("Vazirmatn"),
+            ..Font::DEFAULT
+        })
+        .run()
 }
