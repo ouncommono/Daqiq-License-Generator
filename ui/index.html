@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>استودیو صدور لایسنس نرم‌افزار دقیق (نسخه ۱.۱.۰)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-dark">
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="logo-badge">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="header-titles">
+          <h1>استودیو صدور لایسنس دقیق</h1>
+          <span class="version-tag">نسخه ۱.۱.۰ (موتور امنیتی Rust)</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div id="vault-status-indicator" class="status-pill locked" title="وضعیت مخزن کلیدهای امضا">
+          <span class="status-dot"></span>
+          <span id="vault-status-text">مخزن کلید: قفل</span>
+        </div>
+
+        <button id="btn-theme-toggle" class="btn btn-icon" title="تغییر پوسته (روشن / تاریک)">
+          <svg id="icon-sun" class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="icon-moon" class="icon hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="app-nav">
+      <button class="nav-tab active" data-tab="tab-generator">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <line x1="9" y1="3" x2="9" y2="21"/>
+        </svg>
+        <span>صدور لایسنس جدید</span>
+      </button>
+
+      <button class="nav-tab" data-tab="tab-ledger">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <span>دفتر فروش و بایگانی</span>
+      </button>
+
+      <button class="nav-tab" data-tab="tab-inspector">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <span>بازرس و شبیه‌ساز دقیق</span>
+      </button>
+
+      <button class="nav-tab" data-tab="tab-vault">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <span>مخزن کلیدها</span>
+      </button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <!-- ================= TAB 1: GENERATOR STUDIO ================= -->
+      <section id="tab-generator" class="tab-pane active">
+        <div class="split-layout">
+          <!-- Form Left Column -->
+          <div class="layout-column form-column">
+            <!-- Customer Card -->
+            <div class="card">
+              <div class="card-header">
+                <h2>مشخصات خریدار و لایسنس</h2>
+              </div>
+              <div class="card-body">
+                <div class="form-row">
+                  <div class="form-group flex-2">
+                    <label for="cust-name">نام مشتری / فروشگاه <span class="required">*</span></label>
+                    <input type="text" id="cust-name" placeholder="مثال: فروشگاه برادران حسینی" required>
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="lic-id">شناسه لایسنس <span class="required">*</span></label>
+                    <div class="input-action-wrapper">
+                      <input type="text" id="lic-id" class="code-font" dir="ltr" required>
+                      <button id="btn-regen-lic-id" class="btn btn-sm btn-subtle" title="ایجاد شناسه تصادفی جدید">
+                        🔄
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="cust-org">سازمان / شعبه (اختیاری)</label>
+                    <input type="text" id="cust-org" placeholder="مثال: شعبه مرکزی تهران">
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="cust-contact">اطلاعات تماس / تلفن (اختیاری)</label>
+                    <input type="text" id="cust-contact" dir="ltr" placeholder="+989123456789">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Licensing Model & Dates Card -->
+            <div class="card">
+              <div class="card-header">
+                <h2>مدل اشتراک و تاریخ‌های اعتبار</h2>
+              </div>
+              <div class="card-body">
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label>نوع لایسنس</label>
+                    <div class="radio-pill-group">
+                      <label class="radio-pill">
+                        <input type="radio" name="lic-type" value="subscription" checked>
+                        <span>اشتراکی (دارای انقضا)</span>
+                      </label>
+                      <label class="radio-pill">
+                        <input type="radio" name="lic-type" value="perpetual">
+                        <span>مادام‌العمر (دائمی)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="form-group flex-1">
+                    <label for="max-devices">حداکثر دستگاه‌های مجاز</label>
+                    <input type="number" id="max-devices" min="1" max="100" value="1" required>
+                  </div>
+                </div>
+
+                <div class="form-row" id="dates-row">
+                  <div class="form-group flex-1">
+                    <label for="date-issued">تاریخ صدور (شمسی)</label>
+                    <input type="text" id="date-issued" class="code-font" dir="ltr" placeholder="1405/09/01">
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="date-not-before">شروع اعتبار (شمسی)</label>
+                    <input type="text" id="date-not-before" class="code-font" dir="ltr" placeholder="1405/09/01">
+                  </div>
+                  <div class="form-group flex-1" id="group-expires">
+                    <label for="date-expires">تاریخ انقضا (شمسی)</label>
+                    <input type="text" id="date-expires" class="code-font" dir="ltr" placeholder="1406/09/01">
+                  </div>
+                </div>
+
+                <div class="quick-durations" id="quick-durations">
+                  <span class="label-muted">افزودن سریع اعتبار:</span>
+                  <button type="button" class="btn btn-xs btn-outline" data-months="1">۱ ماه</button>
+                  <button type="button" class="btn btn-xs btn-outline" data-months="3">۳ ماه</button>
+                  <button type="button" class="btn btn-xs btn-outline" data-months="6">۶ ماه</button>
+                  <button type="button" class="btn btn-xs btn-outline" data-months="12">۱ سال</button>
+                  <button type="button" class="btn btn-xs btn-outline" data-months="24">۲ سال</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hardware IDs Card -->
+            <div class="card">
+              <div class="card-header flex-between">
+                <h2>شناسه‌های سخت‌افزاری دستگاه‌ها (HWID)</h2>
+                <div class="header-badges">
+                  <span id="badge-hwid-count" class="badge badge-info">۰ دستگاه وارد شده</span>
+                  <button id="btn-import-daqreq" class="btn btn-xs btn-secondary">
+                    📂 بارگذاری از فایل .daqreq
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <p class="field-hint">
+                  شناسه دستگاه‌ها را از صفحه فعال‌سازی نرم‌افزار دقیق دریافت کرده و در کادر زیر قرار دهید (هر شناسه در یک سطر):
+                </p>
+                <textarea id="txt-hwids" class="code-font" dir="ltr" rows="4" placeholder="fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e"></textarea>
+                <div id="hwid-status-message" class="validation-msg hidden"></div>
+              </div>
+            </div>
+
+            <!-- Feature Flags Card -->
+            <div class="card">
+              <div class="card-header flex-between">
+                <h2>ماژول‌ها و دسترسی‌های مجاز (۱۰ زبانه دقیق)</h2>
+                <div class="header-actions">
+                  <button type="button" id="btn-select-all-features" class="btn btn-xs btn-subtle">انتخاب همه</button>
+                  <button type="button" id="btn-deselect-all-features" class="btn btn-xs btn-subtle">لغو همه</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="feature-grid" id="feature-grid">
+                  <!-- Dynamically populated or static -->
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="dashboard" checked>
+                    <span class="feat-icon">📊</span>
+                    <span class="feat-name">داشبورد و شاخص‌ها</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="products" checked>
+                    <span class="feat-icon">📦</span>
+                    <span class="feat-name">مدیریت کالاها و انبار</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="batches" checked>
+                    <span class="feat-icon">🚚</span>
+                    <span class="feat-name">ثبت خرید و محموله‌ها</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="sales" checked>
+                    <span class="feat-icon">🛒</span>
+                    <span class="feat-name">ثبت فروش و فاکتور</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="services" checked>
+                    <span class="feat-icon">🛠️</span>
+                    <span class="feat-name">میز خدمت و خدمات پس از فروش</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="upgrades" checked>
+                    <span class="feat-icon">🔧</span>
+                    <span class="feat-name">ارتقای کالا و مونتاژ</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="suppliers_payments" checked>
+                    <span class="feat-icon">💳</span>
+                    <span class="feat-name">تأمین‌کنندگان و تسویه‌حساب</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="reports" checked>
+                    <span class="feat-icon">📈</span>
+                    <span class="feat-name">گزارش‌های جامع مالی</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="employees" checked>
+                    <span class="feat-icon">👤</span>
+                    <span class="feat-name">مدیریت کاربران و صندوقداران</span>
+                  </label>
+                  <label class="feature-checkbox">
+                    <input type="checkbox" name="feat" value="settings" checked>
+                    <span class="feat-icon">⚙️</span>
+                    <span class="feat-name">تنظیمات و پشتیبان‌گیری</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Version Bounds Card -->
+            <div class="card">
+              <div class="card-header">
+                <h2>محدودیت نسخه برنامه (اختیاری)</h2>
+              </div>
+              <div class="card-body">
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="min-app-ver">حداقل نسخه نرم‌افزار</label>
+                    <input type="text" id="min-app-ver" class="code-font" dir="ltr" value="4.9.0">
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="max-app-ver">حداکثر نسخه مجاز (اختیاری)</label>
+                    <input type="text" id="max-app-ver" class="code-font" dir="ltr" placeholder="خالی برای نامحدود">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Generate Button -->
+            <div class="action-bar">
+              <button id="btn-generate-license" class="btn btn-primary btn-lg">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <polyline points="9 12 11 14 15 10"/>
+                </svg>
+                <span>تولید و امضای لایسنس دیجیتال (.daqlic)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Output Right Column -->
+          <div class="layout-column preview-column">
+            <div class="card output-card">
+              <div class="card-header flex-between">
+                <h2>خروجی لایسنس امضا شده</h2>
+                <span id="output-badge" class="badge badge-neutral">در انتظار تولید</span>
+              </div>
+              <div class="card-body">
+                <div class="digest-box">
+                  <span class="digest-label">هش SHA-256 محتوای امضا شده:</span>
+                  <div id="output-digest" class="code-font digest-value" dir="ltr">—</div>
+                </div>
+
+                <div class="output-preview-container">
+                  <textarea id="txt-output-json" class="code-font" dir="ltr" readonly placeholder="محتوای فایل .daqlic پس از صدور در این بخش نمایش داده می‌شود..."></textarea>
+                </div>
+
+                <div class="output-actions">
+                  <button id="btn-copy-license" class="btn btn-secondary flex-1" disabled>
+                    📋 کپی لایسنس
+                  </button>
+                  <button id="btn-save-license" class="btn btn-primary flex-1" disabled>
+                    💾 ذخیره فایل .daqlic
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 2: SALES LEDGER ================= -->
+      <section id="tab-ledger" class="tab-pane">
+        <div class="card">
+          <div class="card-header flex-between">
+            <div class="ledger-header-left">
+              <h2>دفتر ثبت لایسنس‌ها و فروش‌های انجام‌شده</h2>
+              <span class="text-muted">پایگاه داده رمزنگاری‌شده محلی (SQLite Air-Gapped)</span>
+            </div>
+            <div class="ledger-actions">
+              <div class="search-input-wrapper">
+                <input type="text" id="txt-ledger-search" placeholder="جستجو بر اساس نام، شناسه لایسنس، تلفن، HWID...">
+              </div>
+              <button id="btn-export-csv" class="btn btn-secondary">
+                📊 خروجی اکسل / CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="data-table" id="table-ledger">
+                <thead>
+                  <tr>
+                    <th>شناسه</th>
+                    <th>نام مشتری</th>
+                    <th>نوع لایسنس</th>
+                    <th>تاریخ صدور</th>
+                    <th>انقضا</th>
+                    <th>دستگاه‌ها</th>
+                    <th>عملیات</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-ledger">
+                  <tr>
+                    <td colspan="7" class="text-center py-4">در حال بارگذاری لیست لایسنس‌ها...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 3: INSPECTOR & SIMULATOR ================= -->
+      <section id="tab-inspector" class="tab-pane">
+        <div class="split-layout">
+          <!-- Inspector Left Column -->
+          <div class="layout-column">
+            <div class="card">
+              <div class="card-header flex-between">
+                <h2>بررسی و اعتبارسنجی فایل لایسنس (.daqlic)</h2>
+                <button id="btn-inspect-file-picker" class="btn btn-xs btn-secondary">
+                  📂 انتخاب فایل لایسنس
+                </button>
+              </div>
+              <div class="card-body">
+                <p class="field-hint">محتوای JSON لایسنس یا فایل .daqlic را در این بخش قرار دهید:</p>
+                <textarea id="txt-inspect-json" class="code-font" dir="ltr" rows="8" placeholder='{"envelope_version": 1, "algorithm": "Ed25519", ...}'></textarea>
+                <div class="action-bar mt-2">
+                  <button id="btn-verify-license" class="btn btn-primary">
+                    🔍 اعتبارسنجی امضای دیجیتال
+                  </button>
+                </div>
+
+                <div id="inspect-result-box" class="result-box hidden mt-3">
+                  <div id="inspect-status-pill" class="status-pill mb-2"></div>
+                  <div id="inspect-message" class="result-message"></div>
+                  <div class="result-digest code-font" dir="ltr" id="inspect-digest"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Simulator Right Column -->
+          <div class="layout-column">
+            <div class="card">
+              <div class="card-header">
+                <h2>شبیه‌ساز رفتار نرم‌افزار دقیق v4.9.0</h2>
+              </div>
+              <div class="card-body">
+                <p class="field-hint">
+                  تست کنید که آیا نرم‌افزار دقیق در تاریخ و سیستم مشخص، این لایسنس را می‌پذیرد یا رد می‌کند:
+                </p>
+
+                <div class="form-group">
+                  <label for="sim-hwid">شناسه سخت‌افزاری دستگاه مشتری (HWID)</label>
+                  <input type="text" id="sim-hwid" class="code-font" dir="ltr" placeholder="fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label for="sim-date">تاریخ فرضی ارزیابی (شمسی)</label>
+                    <input type="text" id="sim-date" class="code-font" dir="ltr" placeholder="1405/09/01">
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="sim-version">نسخه فرضی برنامه</label>
+                    <input type="text" id="sim-version" class="code-font" dir="ltr" value="4.9.0">
+                  </div>
+                </div>
+
+                <div class="action-bar mt-2">
+                  <button id="btn-run-simulation" class="btn btn-secondary">
+                    ⚡ اجرای شبیه‌سازی ورود مشتری
+                  </button>
+                </div>
+
+                <div id="sim-result-box" class="result-box hidden mt-3">
+                  <div id="sim-status-pill" class="status-pill mb-2"></div>
+                  <div id="sim-message" class="result-message"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TAB 4: KEY VAULT ================= -->
+      <section id="tab-vault" class="tab-pane">
+        <div class="split-layout">
+          <div class="layout-column">
+            <div class="card">
+              <div class="card-header">
+                <h2>مخزن کلیدهای امضا (Ed25519 Secure Vault)</h2>
+              </div>
+              <div class="card-body">
+                <div class="vault-info-banner">
+                  <div class="info-row">
+                    <span class="label">شناسه کلید فعال:</span>
+                    <span id="vault-key-id" class="code-font fw-bold" dir="ltr">daqiq-prod-v1</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="label">کلید عمومی رسمی (Ed25519 Public Key):</span>
+                    <span id="vault-public-key" class="code-font text-break" dir="ltr">tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=</span>
+                  </div>
+                </div>
+
+                <div class="divider my-3"></div>
+
+                <h3>بازگشایی قفل مخزن موجود (.dqvault)</h3>
+                <p class="field-hint">فایل مخزن کلیدهای رمزنگاری شده خود را انتخاب کرده و رمز عبور را وارد نمایید:</p>
+
+                <div class="form-group">
+                  <label for="vault-passphrase-unlock">رمز عبور مخزن</label>
+                  <input type="password" id="vault-passphrase-unlock" placeholder="رمز عبور ورود به مخزن کلید">
+                </div>
+
+                <div class="action-bar">
+                  <button id="btn-unlock-vault-file" class="btn btn-primary">
+                    🔓 انتخاب فایل و بازگشایی قفل
+                  </button>
+                  <button id="btn-lock-vault" class="btn btn-outline">
+                    🔒 قفل کردن مخزن
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="layout-column">
+            <div class="card">
+              <div class="card-header">
+                <h2>ایجاد جفت کلید جدید و صدور مخزن امن</h2>
+              </div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label for="new-key-id">شناسه کلید جدید (Key ID)</label>
+                  <input type="text" id="new-key-id" class="code-font" dir="ltr" value="daqiq-custom-v1">
+                </div>
+
+                <div class="form-group">
+                  <label for="new-vault-passphrase">رمز عبور امن جهت رمزنگاری مخزن (AES-256-GCM)</label>
+                  <input type="password" id="new-vault-passphrase" placeholder="حداقل ۸ کاراکتر ترکیبی">
+                </div>
+
+                <div class="action-bar">
+                  <button id="btn-create-new-vault" class="btn btn-secondary">
+                    🔑 ایجاد کلید جدید و ذخیره فایل .dqvault
+                  </button>
+                </div>
+
+                <div class="alert alert-warning mt-3">
+                  <strong>توجه مهندسی:</strong> کلید اختصاصی شرکت در کد منبع دقیق PR #38 به عنوان <code>daqiq-prod-v1</code> ثبت شده است. لایسنس‌های تجاری تولید شده باید با کلید متناظر <code>daqiq-prod-v1</code> امضا شوند تا بدون نیاز به کامپایل مجدد، توسط نسخه رسمی دقیق تایید گردند.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Global Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
