@@ -124,9 +124,9 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "dist" | Out-Null
           $exe = "target\release\daqiq-license-generator.exe"
-          & $exe --self-test --report "dist\selftest_report.json"
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Headless self-test failed!"
+          $proc = Start-Process -FilePath $exe -ArgumentList @("--self-test", "--report", "dist\selftest_report.json") -Wait -PassThru -NoNewWindow
+          if ($proc.ExitCode -ne 0) {
+            Write-Error "Headless self-test failed with exit code $($proc.ExitCode)!"
             exit 1
           }
           Get-Content "dist\selftest_report.json"
