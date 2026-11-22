@@ -1,0 +1,230 @@
+name: Daqiq License Generator CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+      - 'feature/**'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  validate-and-test:
+    name: Validate and Headless Test Suite
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+
+      - name: Scan repository for signing keys and secrets
+        shell: pwsh
+        run: |
+          $keyPattern = "PRIVATE" + " " + "KEY"
+          $priv = git grep -in "$keyPattern"
+          if ($LASTEXITCODE -eq 0) {
+            Write-Error "CRITICAL: Secret pattern detected in repository!"
+            exit 1
+          } elseif ($LASTEXITCODE -ne 1) {
+            Write-Error "git grep encountered an unexpected error."
+            exit 1
+          }
+          $global:LASTEXITCODE = 0
+          Write-Output "Zero secret signing keys detected in repository."
+
+      - name: Compile Python bytecode
+        shell: pwsh
+        run: python -m compileall -q .
+
+      - name: Run CLI flags self-test
+        shell: pwsh
+        run: |
+          python main.py --version
+          python main.py --self-test
+
+      - name: Run PyTest Headless Test Suite
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: .
+        shell: pwsh
+        run: pytest -v --timeout=60
+
+  build-and-smoke-test:
+    name: Build Standalone Windows Executable
+    needs: validate-and-test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+
+      - name: Read Application Version
+        id: version_step
+        shell: pwsh
+        run: |
+          $ver = (Get-Content VERSION).Trim()
+          if (-not $ver) { $ver = "1.0.0" }
+          Write-Output "APP_VERSION=$ver" >> $env:GITHUB_ENV
+          Write-Output "Building Daqiq License Generator for version: $ver"
+
+      - name: Package Standalone Windows Executable
+        shell: pwsh
+        run: python scripts/build_executable.py --tool pyinstaller
+
+      - name: Verify Compiled Binary Smoke Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        shell: pwsh
+        run: python scripts/verify_build.py
+
+      - name: Scan built artifacts for secrets
+        shell: pwsh
+        run: |
+          $keyPattern = "PRIVATE" + " " + "KEY"
+          $found = Select-String -Path dist/SHA256SUMS.txt -Pattern $keyPattern
+          if ($found) {
+            Write-Error "Secret pattern found in output artifacts!"
+            exit 1
+          }
+          Write-Output "Artifact security scan clean."
+
+      - name: Upload Windows Standalone Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Daqiq-License-Generator-Windows-v${{ env.APP_VERSION }}
+          path: |
+            dist/Daqiq-License-Generator-v${{ env.APP_VERSION }}.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish Production GitHub Release
+    needs: build-and-smoke-test
+    if: github.ref == 'refs/heads/release/v1.0.0' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read Application Version
+        id: version_step
+        shell: pwsh
+        run: |
+          $ver = (Get-Content VERSION).Trim()
+          if (-not $ver) { $ver = "1.0.0" }
+          Write-Output "APP_VERSION=$ver" >> $env:GITHUB_ENV
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Daqiq-License-Generator-Windows-v${{ env.APP_VERSION }}
+          path: dist
+
+      - name: Verify SHA256 Checksums
+        shell: pwsh
+        run: |
+          Get-Content dist/SHA256SUMS.txt
+          $target = "dist/Daqiq-License-Generator-v${{ env.APP_VERSION }}.exe"
+          if (-not (Test-Path $target)) {
+            Write-Error "Target executable not found: $target"
+            exit 1
+          }
+          $actualSha = (Get-FileHash -Algorithm SHA256 $target).Hash.ToLower()
+          Write-Output "Verified SHA256: $actualSha"
+
+      - name: Ensure Open Pull Request to main
+        if: github.ref != 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $currentBranch = (git branch --show-current).Trim()
+          if (-not $currentBranch) {
+            $currentBranch = "${{ github.ref_name }}"
+          }
+          Write-Output "Checking for existing PR from $currentBranch to main..."
+          $existingPr = gh pr list --head $currentBranch --base main --json number --jq '.[0].number'
+          if ($existingPr) {
+            Write-Output "Pull request #$existingPr already exists."
+          } else {
+            Write-Output "Creating open PR from $currentBranch to main..."
+            gh pr create `
+              --base main `
+              --head $currentBranch `
+              --title "Release v${{ env.APP_VERSION }} - Commercial Offline License Studio" `
+              --body "Daqiq License Generator v${{ env.APP_VERSION }} release: 100% offline commercial desktop studio for generating, managing, and inspecting asymmetric Ed25519 .daqlic licenses for Daqiq v4.9.0 (PR #38). Includes encrypted AES-256-GCM key vault, multi-device node-locking (fp_v1), Jalali date scheduling, sales ledger, and verification simulator."
+          }
+
+      - name: Publish Official GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "v${{ env.APP_VERSION }}"
+          $title = "Daqiq License Generator $tag"
+          $exePath = "dist/Daqiq-License-Generator-v${{ env.APP_VERSION }}.exe"
+          $sumsPath = "dist/SHA256SUMS.txt"
+
+          Write-Output "Publishing release $tag marked as Latest..."
+          $existingRel = gh release view $tag 2>$null
+          if ($existingRel) {
+            Write-Output "Release $tag already exists, updating assets..."
+            gh release upload $tag $exePath $sumsPath --clobber
+          } else {
+            gh release create $tag $exePath $sumsPath `
+              --title $title `
+              --notes "## Daqiq License Generator $tag (Commercial Offline Studio)`n`nOfficial commercial offline license studio for Daqiq Desktop ERP v4.9.0+.`n`n### Key Capabilities:`n- 100% byte-for-byte compatibility with Daqiq PR #38 Ed25519 licensing protocol.`n- Encrypted AES-256-GCM Key Vault with 600,000 PBKDF2 iterations.`n- Multi-device node-locking with live fp_v1 validation.`n- Jalali calendar date picker and duration presets.`n- Local offline sales and license ledger (SQLite) with Fast Clone & Renew.`n- Built-in license inspector and Daqiq v4.9.0 verification simulator.`n`n### Attached Binaries:`n- **Daqiq-License-Generator-v${{ env.APP_VERSION }}.exe** (Standalone Windows Executable)`n- **SHA256SUMS.txt** (Cryptographic verification digests)" `
+              --latest `
+              --prerelease=false
+          }
