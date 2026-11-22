@@ -59,7 +59,7 @@ The `.daqlic` file is an offline JSON document encoded in **UTF-8 without BOM**,
 ### 1.2 Cryptographic Parameters
 - **Algorithm:** Ed25519 (Edwards-curve Digital Signature Algorithm over Curve25519, RFC 8032).
 - **Public Key Representation:** Raw 32 bytes encoded in standard Base64 (e.g. `tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=`). In Daqiq Desktop, registered in `licensing/keys.py` within `DEFAULT_KEY_REGISTRY`.
-- **Private Key Storage:** Never stored in plaintext. Encrypted in vendor vault files using AES-256-GCM with PBKDF2-HMAC-SHA256 (600,000 iterations) or Scrypt key derivation.
+- **Secret Signing Key Storage:** Never stored in plaintext. Encrypted in vendor vault files using AES-256-GCM with PBKDF2-HMAC-SHA256 (600,000 iterations) or Scrypt key derivation.
 - **Domain Separation Prefix:**
   ```python
   DOMAIN_PREFIX = b"DAQIQ-LICENSE-V1\n"
