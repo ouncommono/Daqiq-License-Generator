@@ -1,0 +1,94 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.spec
+
+# PyInstaller / Nuitka
+*.manifest
+*.dist/
+*.onefile-build/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# HARD INVARIANT: STRICT CRYPTOGRAPHIC & SENSITIVE KEYS / VAULTS / LICENSES
+*.pem
+*.key
+*.dqkey
+*.vault
+*.dqvault
+*.daqlic
+*.daqreq
+*.cer
+*.crt
+*.der
+*.pfx
+*.p12
+
+# Database & SQLite files
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+registry.sqlite*
+
+# Local clock & cache state
+clock_state.json
+*.tmp
+tmp/
+temp/
