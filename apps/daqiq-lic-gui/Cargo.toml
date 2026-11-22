@@ -1,0 +1,25 @@
+[package]
+name = "daqiq-license-generator"
+version = "1.2.0"
+edition = "2021"
+authors = ["Daqiq Licensing Architecture Team"]
+description = "Pure native Rust offline license studio for Daqiq Desktop v4.9.0"
+
+[features]
+default = ["sqlite"]
+sqlite = ["daqiq-lic-core/sqlite"]
+
+[dependencies]
+daqiq-lic-core = { path = "../../crates/daqiq-lic-core", default-features = false }
+iced = { version = "0.14", default-features = false, features = ["tiny-skia", "advanced", "svg", "thread-pool"] }
+rfd = "0.15"
+arboard = "3.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+rand = "0.8"
+dirs = "6.0"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"

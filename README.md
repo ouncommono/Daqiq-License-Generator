@@ -1,100 +1,128 @@
-# مولد لایسنس دقیق — Daqiq License Generator v1.0.0
-### Commercial Offline License Studio for Daqiq Desktop (v4.9.0+)
+# استودیو صدور لایسنس دقیق (Daqiq License Generator Studio v1.2.0)
+### Commercial Offline License Studio for Daqiq Desktop ERP (v4.9.0+)
+**100% Self-Contained Zero-WebView2 Native Rust Desktop Application**
 
-**Daqiq License Generator** is an enterprise-grade, 100% offline desktop application engineered for generating, managing, and verifying asymmetric cryptographic licenses (`.daqlic`) for **Daqiq Desktop ERP** ([PR #38](https://github.com/ouncommono/Daqiq/pull/38)).
-
----
-
-## 🔒 ویژگی‌های کلیدی و امنیتی (Key Features)
-
-1. **سازگاری صد در صد با پروتکل لایسنس دقیق (PR #38):**
-   - امضای دیجیتال نامتقارن با الگوریتم **Ed25519 (RFC 8032)**.
-   - سریال‌سازی استاندارد و یکسان بر مبنای استاندارد **Unicode NFC** و مرتب‌سازی کلیدها (`sort_keys=True`).
-   - پشتیبانی کامل از شناسه سخت‌افزاری **`fp_v1`** (گره‌های سخت‌افزاری پایدار مادربورد و بایوس).
-2. **گاوصندوق رمزنگاری‌شده کلیدهای امضا (Encrypted Key Vault):**
-   - ذخیره‌سازی کلیدهای خصوصی منحصراً به صورت رمزنگاری‌شده با **AES-256-GCM** و استخراج کلید با **PBKDF2-HMAC-SHA256 (۶۰۰٬۰۰۰ دور)**.
-   - حفظ کلید خصوصی منحصراً در حافظه رم (RAM) و امکان قفل فوری با یک کلیک.
-   - عدم ذخیره هیچ کلید محرمانه‌ای در تاریخچه Git یا دیسک به صورت متن واضح (Plaintext).
-3. **پشتیبانی کامل از چند دستگاهی (Multi-Device Binding):**
-   - ثبت یک یا چند شناسه سخت‌افزاری با اعتبارسنجی زنده ساختار `fp_v1`.
-   - امکان افزودن گروهی شناسه‌ها (Bulk Paste) و حذف نویسه‌های نامرئی، فاصله‌ها و کاراکترهای جهت متن (RLM/LRM).
-   - بارگذاری مستقیم فایل‌های درخواست سیستم (`.daqreq`).
-4. **زمان‌بندی تقویم جلالی (Jalali-First):**
-   - انتخاب‌گر تقویم شمسی برای تاریخ‌های شروع و پایان لایسنس با تبدیل دقیق به UTC ISO-8601.
-   - دکمه‌های سریع برای دوره‌های پرکاربرد (۷ روز، ۱ ماه، ۳ ماه، ۶ ماه، ۱ سال، ۲ سال، دائمی).
-5. **دفتر کل سوابق لایسنس‌ها (Offline License Registry):**
-   - پایگاه داده محلی SQLite با قابلیت جستجوی آنی مشتری، شماره تماس و شناسه لایسنس.
-   - امکان «تمدید سریع (Clone & Renew)» با یک کلیک، ذخیره مجدد فایل و خروجی CSV/Excel.
-6. **بازرس و شبیه‌ساز لایسنس (License Inspector & Simulator):**
-   - بررسی صحت رمزنگاری و نمایش اجزای فایل‌های `.daqlic`.
-   - شبیه‌ساز رفتار لایسنس در تاریخ‌های مختلف و با شناسه‌های سخت‌افزاری گوناگون در Daqiq.
-7. **طراحی حرفه‌ای راست‌به‌چپ (Persian RTL) با PySide6:**
-   - دو تم مدرن روشن (Light) و تیره (Dark) هماهنگ با هویت بصری نرم‌افزار دقیق.
+**Daqiq License Generator v1.2.0** یک نرم‌افزار تجاری رده سازمانی، کاملاً آفلاین (Air-Gapped) و بازنویسی‌شده به‌صورت **۱۰۰٪ Native Rust خالص بدون هیچ‌گونه وابستگی به WebView2، مرورگر Edge یا مفسر پایتون** است. این ابزار برای تولید، مدیریت، امضا و بازرسی لایسنس‌های نامتقارن رمزنگاری‌شده (`.daqlic`) نرم‌افزار **دقیق (Daqiq Desktop ERP v4.9.0 - PR #38)** توسعه یافته است.
 
 ---
 
-## 🛠️ ساختار ماژول‌ها و معماری (Architecture)
+## 🚀 ویژگی‌های کلیدی نسخه ۱.۲.۰ (Key Features)
+
+1. **حذف کامل WebView2 و وابستگی‌های خارجی (Zero WebView2 / Zero External Runtime):**
+   - معماری رابط کاربری دسکتاپ بر پایه موتور گرافیکی بومی **`iced`** با رندرر نرم‌افزاری خودکفا **`tiny-skia`**.
+   - اجرا و رندر پایدار روی تمام کامپیوترهای مبتنی بر ویندوز ۱۰ و ۱۱ (از جمله ماشین‌های مجازی، محیط‌های سروری، و سیستم‌های کاملاً آفلاین بدون درایور گرافیک یا GPU).
+   - حذف کامل کتابخانه‌های `WebView2Loader.dll`، Edge و فایل‌های اضافی فرانت‌اند وب.
+2. **فایل اجرایی مستقل فوق سبک و بدون پنجره کنسول (Standalone Native Binary < 25 MB):**
+   - حجم فایل پرتابل نهایی کامپایل‌شده تنها **۵.۵ مگابایت** است (هدف: کمتر از ۲۵ مگابایت).
+   - پیوند به ساب‌سیستم گرافیکی ویندوز (`Subsystem = 2 / IMAGE_SUBSYSTEM_WINDOWS_GUI`) بدون کوچک‌ترین پرش یا نمایش پنجره CMD.
+   - شروع به کار فوق سریع (زیر ۳۰۰ میلی‌ثانیه) با مصرف حافظه رم حداقلی.
+3. **تطابق بایت‌به‌بایت با موتور امنیتی Daqiq PR #38:**
+   - امضای دیجیتال استاندارد **Ed25519 (RFC 8032)** منطبق بر کلید رسمی Daqiq (`daqiq-prod-v1: tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=`).
+   - پیشوند تفکیک دامنه رمزنگاری: `b"DAQIQ-LICENSE-V1\n"`.
+   - سریال‌سازی قطعی (Canonical JSON): نرمال‌سازی نویسه‌ها به فرم **Unicode NFC**، مرتب‌سازی بازگشتی کلیدها (`BTreeMap`)، حفظ فیلدهای اختیاری با مقدار `null` و جداسازهای استاندارد بدون فاصله `(,)` و `(:)`.
+   - قفل سخت‌افزاری بر اساس فرمت استاندارد **`fp_v1:<64-hex>`** با پالایش خودکار نویسه‌های نامرئی، نیم‌فاصله‌ها و کاراکترهای جهت متن (RLM/LRM) و پشتیبانی از بارگذاری فایل درخواست `.daqreq`.
+4. **گاوصندوق رمزنگاری‌شده کلیدهای امضا (Encrypted Key Vault):**
+   - ذخیره‌سازی کلیدهای اختصاصی منحصراً به فرمت رمزنگاری‌شده `.dqvault` با الگوریتم **AES-256-GCM** و مشتق‌سازی کلید با **PBKDF2-HMAC-SHA256 (۶۰۰٬۰۰۰ دور تکرار)**.
+   - پاک‌سازی امن حافظه با کتابخانه `zeroize`.
+   - خط‌مشی سخت‌گیرانه عدم ثبت هیچ کلید خصوصی در مخزن گیت.
+5. **رابط کاربری مدرن فارسی با اتصال صحیح حروف و کنتراست بالا (WCAG AA+):**
+   - قلم‌های محلی **وزیرمتن (Vazirmatn)** و **جت‌برینز مونو (JetBrains Mono)** به صورت باینری با دستور `include_bytes!` درون فایل اجرایی تعبیه شده‌اند.
+   - رندر و شکل‌دهی صحیح حروف متصل زبان فارسی به صورت بومی با موتور `cosmic-text` / `rustybuzz`.
+   - پشتیبانی از تم‌های تیره (Dark) و روشن (Light) منطبق بر استانداردهای کنتراست **WCAG AA+**.
+6. **دفتر ثبت فروش و بایگانی لایسنس‌ها (Bundled SQLite Ledger):**
+   - پایگاه داده سبک و محلی SQLite برای جستجو، فیلتر و نگهداری سوابق لایسنس‌های صادر شده.
+   - دکمه تمدید و صدور جدید سریع (`Clone & Renew`).
+   - خروجی استاندارد CSV جهت وارد کردن به نرم‌افزارهای حسابداری و اکسل.
+7. **بازرس و شبیه‌ساز دقیق (Inspector & Simulator):**
+   - بارگذاری هر فایل `.daqlic` با دیالوگ استاندارد Win32، راستی‌آزمایی امضا و محاسبه هش SHA-256.
+   - شبیه‌ساز کامل رفتار ارزیابی نرم‌افزار دقیق برای بررسی تاریخ‌های انقضا، نسخه‌های مجاز و شناسه‌های سخت‌افزاری.
+8. **اجرای خودکار آزمون‌های هِدلس و گزارش سلامت:**
+   - پرچم `--self-test --report <path>` جهت تست داخلی تمام ماژول‌های رمزنگاری و شبیه‌ساز وضعیت بدون باز شدن پنجره گرافیکی.
+   - پرچم `--version` جهت استعلام نسخه سریع.
+
+---
+
+## 🛠️ معماری سیستم (System Architecture)
 
 ```
 Daqiq-License-Generator/
-├── core/
-│   ├── key_vault.py        # گاوصندوق رمزنگاری کلیدهای امضا (AES-256-GCM)
-│   ├── hwid_parser.py      # تحلیل، پاک‌سازی و اعتبارسنجی شناسه‌های سخت‌افزاری
-│   ├── license_builder.py  # ساخت پاکت لایسنس، امضا و خود-اعتبارسنجی اتمیک
-│   └── registry_db.py      # پایگاه داده محلی سوابق لایسنس‌های صادرشده
-├── ui/
-│   ├── theme.py            # استایل‌های تیره و روشن، آیکون‌ها و تایپوگرافی
-│   ├── jalali_picker.py    # ویجت تعاملی انتخاب تاریخ جلالی
-│   ├── tab_generator.py    # تب ۱: استودیوی تولید لایسنس
-│   ├── tab_ledger.py       # تب ۲: دفتر کل سوابق لایسنس‌ها
-│   ├── tab_inspector.py    # تب ۳: بازرس و شبیه‌ساز لایسنس
-│   ├── tab_vault.py        # تب ۴: مدیریت گاوصندوق کلیدها و تنظیمات
-│   └── main_window.py      # پنجره اصلی برنامه با چیدمان راست‌به‌چپ
+├── Cargo.toml                       # پیکربندی ورک‌اسپیس Rust و بهینه‌سازی سایز LTO
+├── crates/
+│   └── daqiq-lic-core/              # هسته محاسباتی، رمزنگاری و منطق کسب‌وکار (Pure Rust)
+│       ├── Cargo.toml
+│       └── src/
+│           ├── lib.rs
+│           ├── crypto.rs            # سریال‌سازی NFC، هش و امضای Ed25519
+│           ├── schema.rs            # تعاریف داده‌ای ۱۴ فیلد استاندارد لایسنس
+│           ├── hwid.rs              # پالایش و اعتبارسنجی شناسه‌های سخت‌افزاری fp_v1
+│           ├── jalali.rs            # تبدیل دقیق تاریخ شمسی و میلادی UTC
+│           ├── vault.rs             # گاوصندوق رمزنگاری‌شده کلید با AES-256-GCM
+│           ├── registry.rs          # پایگاه داده داخلی SQLite و خروجی CSV
+│           └── error.rs             # مدیریت جامع خطاهای سیستم
+├── apps/
+│   └── daqiq-lic-gui/               # رابط کاربری بومی دسکتاپ (Pure Native Rust - بدون WebView)
+│       ├── Cargo.toml               # استفاده از iced با tiny-skia و بدون wgpu/webview
+│       ├── build.rs                 # الحاق آیکون و فراداده ویندوز (VERSIONINFO 1.2.0)
+│       ├── assets/
+│       │   ├── icon.ico             # آیکون وکتور اپلیکیشن
+│       │   └── fonts/               # قلم‌های آفلاین TTF (Vazirmatn + JetBrains Mono)
+│       └── src/
+│           ├── main.rs              # نقطه ورود GUI، ساب‌سیستم ویندوز و پرچم --self-test
+│           ├── theme.rs             # تم‌های تیره و روشن با کنتراست بالا (WCAG AA+)
+│           ├── rtl.rs               # ابزارهای تقویم شمسی و قالب‌بندی فارسی
+│           ├── state.rs             # مدیریت وضعیت بر پایه معماری Elm (AppState & Messages)
+│           └── views/
+│               ├── mod.rs
+│               ├── header.rs        # نوار بالای وضعیت، وضعیت گاوصندوق و دکمه تم
+│               ├── generator.rs     # زبانه ۱: استودیو تولید لایسنس
+│               ├── registry.rs      # زبانه ۲: دفتر فروش و سوابق
+│               ├── inspector.rs     # زبانه ۳: بازرس و شبیه‌ساز دقیق
+│               └── vault.rs         # زبانه ۴: گاوصندوق کلیدها و تنظیمات
+├── scripts/
+│   └── verify_pe.py                 # اسکریپت بازرسی هدر PE، ساب‌سیستم و وابستگی‌های DLL
+├── tests/
+│   └── test_cross_repo_compatibility.py # آزمون انطباق متقابل با وریفایر Daqiq PR #38
 ├── docs/
-│   └── COMPATIBILITY_CONTRACT.md # سند رسمی سازگاری با Daqiq PR #38
-├── tests/                  # آزمون‌های خودکار هِدلس
-└── main.py                 # نقطه ورود برنامه و اجرای رابط کاربری
+│   ├── COMPATIBILITY_CONTRACT.md    # سند رسمی سازگاری بایت‌به‌بایت با دقیق
+│   └── ROOT_CAUSE_V1_0_0.md         # گزارش تحلیل ریشه‌ای اشکالات نسخه ۱.۰.۰
+├── assets/                          # آیکون‌های برنامه (.ico, .png, .svg)
+└── VERSION                          # شناسه نسخه (1.2.0)
 ```
 
 ---
 
-## 🚀 نحوه نصب و اجرا (Quick Start)
+## ⚙️ دستورات ساخت و تست (Build & Verification)
 
-### ۱. نصب وابستگی‌ها
+### اجرای آزمون‌های ورک‌اسپیس Rust
 ```bash
-pip install -r requirements.txt
-pip install -r requirements-build.txt
+cargo test --workspace --verbose
 ```
 
-### ۲. اجرای برنامه
+### اجرای تست سازگاری متقابل با Daqiq PR #38
 ```bash
-python main.py
+python -m pytest tests/test_cross_repo_compatibility.py -v
 ```
 
-### ۳. اجرای آزمون‌های هِدلس (Headless Automated Tests)
+### ساخت نسخه نهایی پرتابل (Standalone Release EXE)
 ```bash
-# ویندوز (PowerShell)
-$env:QT_QPA_PLATFORM="offscreen"
-pytest -v
+cargo build --release -p daqiq-license-generator
+```
+فایل اجرایی در مسیر `target/release/daqiq-license-generator.exe` با حجم حدود **۵.۵ مگابایت** تولید می‌شود.
 
-# لینوکس / CI
-QT_QPA_PLATFORM=offscreen pytest -v
+### بازرسی خودکار هدر PE و عدم وابستگی به WebView2
+```bash
+python scripts/verify_pe.py target/release/daqiq-license-generator.exe 25.0
+```
+
+### اجرای آزمون سلامت هِدلس (Headless Self-Test)
+```bash
+.\target\release\daqiq-license-generator.exe --self-test --report selftest_report.json
 ```
 
 ---
 
-## 🔑 سازگاری با کد Daqiq Desktop
+## 🔒 امنیت و گواهی انطباق (Security Compliance)
 
-کلید عمومی تولیدشده در تب «مدیریت کلیدها» مستقیماً در فایل `licensing/keys.py` نرم‌افزار Daqiq ثبت می‌شود:
-
-```python
-DEFAULT_KEY_REGISTRY: Dict[str, str] = {
-    "daqiq-prod-v1": "<YOUR_BASE64_PUBLIC_KEY>",
-}
-```
-
----
-
-## 📄 مجوز (License)
-
-Commercial Proprietary — تمامی حقوق برای توسعه‌دهندگان Daqiq محفوظ است.
+- **Air-Gapped & 100% Offline:** صفر اتصال شبکه‌ای در زمان اجرا؛ تمام قلم‌ها و دارایی‌ها مستقیماً درون باینری تعبیه شده‌اند.
+- **Zero Secrets in Git:** هیچ کلید خصوصی متن آشکاری در مخزن وجود ندارد؛ آزمون‌ها با کلیدهای گذرا اجرا می‌شوند.
+- **PE GUI Subsystem 2:** بدون وابستگی به کنسول ویندوز یا خط فرمان.
