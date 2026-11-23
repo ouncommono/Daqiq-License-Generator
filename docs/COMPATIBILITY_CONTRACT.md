@@ -1,10 +1,10 @@
-# Daqiq Licensing Compatibility Contract (v1.4.0)
+# Daqiq Licensing Compatibility Contract (v1.4.2)
 
-**Single Source of Truth:** `https://github.com/ouncommono/Daqiq/pull/39` (Daqiq v4.9.1)  
-**Contract Version:** 1.4.0  
+**Single Source of Truth:** `https://github.com/ouncommono/Daqiq/pull/40` (Daqiq v4.9.2)  
+**Contract Version:** 1.4.2  
 **Target Applications:**  
-- Issuer: **Daqiq License Generator v1.4.0** (`daqiq.license_generator`)  
-- Consumer: **Daqiq Desktop v4.9.1** (`daqiq.desktop`)  
+- Issuer: **Daqiq License Generator v1.4.2** (`daqiq.license_generator`)  
+- Consumer: **Daqiq Desktop v4.9.2** (`daqiq.desktop`)  
 - Device Request Utility: **Companion App A / In-App Exporter** (`daqiq.request_utility`)
 
 ---
@@ -67,9 +67,14 @@ Alternatively, the license can be pasted directly into Daqiq Desktop as a **Comp
 ### 1.2 Cryptographic Parameters
 - **Algorithm:** Ed25519 (RFC 8032).
 - **Public Key Representation:** Raw 32 bytes encoded in standard Base64 (e.g. `tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=`). In Daqiq Desktop, registered in `licensing/keys.py` within `DEFAULT_KEY_REGISTRY`.
-- **Public Key Fingerprint:** Deterministic 12-hex character prefix of SHA-256 over raw public key bytes:
-  $$\text{fingerprint} = \text{hex}(\text{SHA256}(\text{raw\_pub\_bytes}))[0..12]$$
-- **Secret Signing Key Storage:** Never stored in plaintext. Encrypted in vendor vault files using AES-256-GCM with PBKDF2-HMAC-SHA256 (600,000 iterations). Memory zeroized on drop.
+- **Public Key Fingerprint (Key FP):** Exact PR #40 algorithm:
+  Deterministic 14-character string formatted as `XXXX-XXXX-XXXX` from the first 12 uppercase hexadecimal characters of SHA-256 over the raw 32-byte public key:
+  $$\text{hex} = \text{hex}(\text{SHA256}(\text{raw\_pub\_bytes})).\text{upper}()$$
+  $$\text{Key FP} = \text{hex}[0..4] + \text{'-'} + \text{hex}[4..8] + \text{'-'} + \text{hex}[8..12]$$
+  Display string with key ID:
+  $$\text{display} = \text{f"}\{\text{key\_id}\} \cdot \{\text{Key FP}\}\text{"}$$
+  For official production key `daqiq-prod-v1`: `daqiq-prod-v1 · 7925-3864-0164`.
+- **Secret Signing Key Storage:** Never stored in plaintext. Encrypted in vendor vault file at `%LOCALAPPDATA%\DaqiqLicenseGenerator\vault.dqkey` using AES-256-GCM with PBKDF2-HMAC-SHA256 (600,000 iterations). Memory zeroized on drop.
 - **Domain Separation Prefix:**
   ```python
   DOMAIN_PREFIX = b"DAQIQ-LICENSE-V1\n"
@@ -102,7 +107,7 @@ To guarantee byte-for-byte reproducibility across Python and Rust:
 
 ---
 
-## 2. Payload Field Specification (PR #39 Parity)
+## 2. Payload Field Specification (PR #40 Parity)
 
 | Field Name | Type | Allowed Values | Null Behavior | Description |
 |---|---|---|---|---|

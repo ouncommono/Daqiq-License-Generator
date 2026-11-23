@@ -4,9 +4,9 @@ fn main() {
         let mut res = winres::WindowsResource::new();
         res.set_icon("assets/icon.ico");
         res.set("ProductName", "Daqiq License Generator Studio");
-        res.set("FileDescription", "Daqiq Commercial License Studio v1.4.1 (Pure Native Win32)");
-        res.set("ProductVersion", "1.4.1");
-        res.set("FileVersion", "1.4.1");
+        res.set("FileDescription", "Daqiq Commercial License Studio v1.4.2 (Pure Native Win32 / Direct2D)");
+        res.set("ProductVersion", "1.4.2");
+        res.set("FileVersion", "1.4.2");
         res.set("LegalCopyright", "Copyright (c) 2026 Daqiq");
         res.set_manifest(r#"
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">

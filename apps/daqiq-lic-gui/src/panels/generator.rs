@@ -103,7 +103,7 @@ impl GeneratorView {
     pub fn create(parent: HWND, fonts: &Fonts) -> Self {
         let lbl_header = create_label(
             parent,
-            "صدور لایسنس تجاری Daqiq v4.9.1 (تطابق کامل PR #39)",
+            "صدور لایسنس تجاری Daqiq v4.9.2 (تطابق کامل PR #40)",
             20, 10, 700, 24,
             1100,
             fonts.heading,

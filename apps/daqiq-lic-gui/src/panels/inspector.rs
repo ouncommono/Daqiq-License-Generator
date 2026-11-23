@@ -42,7 +42,7 @@ impl InspectorView {
     pub fn create(parent: HWND, fonts: &Fonts) -> Self {
         let lbl_header = create_label(
             parent,
-            "بازرسی، ارزیابی امضا و شبیه‌ساز انطباق با Daqiq v4.9.1",
+            "بازرسی، ارزیابی امضا و شبیه‌ساز انطباق با Daqiq v4.9.2",
             20, 10, 700, 24,
             1300,
             fonts.heading,
@@ -125,7 +125,7 @@ impl InspectorView {
         // Simulator
         let lbl_sim_header = create_label(
             parent,
-            "شبیه‌ساز ارزیابی لایسنس در هنگام اجرا توسط Daqiq v4.9.1 (PR #39)",
+            "شبیه‌ساز ارزیابی لایسنس در هنگام اجرا توسط Daqiq v4.9.2 (PR #40)",
             20, 415, 600, 22,
             0,
             fonts.subheading,
@@ -135,7 +135,7 @@ impl InspectorView {
         let txt_sim_hwid = create_edit(parent, "", 20, 465, 380, 26, ID_TXT_SIM_HWID, fonts.mono, false, false, false, false);
 
         let lbl_sim_version = create_label(parent, "نسخه نرم‌افزار Daqiq:", 420, 445, 150, 18, 0, fonts.small);
-        let txt_sim_version = create_edit(parent, "4.9.1", 420, 465, 140, 26, ID_TXT_SIM_VERSION, fonts.regular, false, false, false, false);
+        let txt_sim_version = create_edit(parent, "4.9.2", 420, 465, 140, 26, ID_TXT_SIM_VERSION, fonts.regular, false, false, false, false);
 
         let btn_simulate = create_button(parent, "شبیه‌سازی بررسی در Daqiq  ▶", 580, 463, 210, 30, ID_BTN_SIMULATE, fonts.bold);
 

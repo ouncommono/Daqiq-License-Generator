@@ -1,9 +1,9 @@
 [package]
 name = "daqiq-license-generator"
-version = "1.4.1"
+version = "1.4.2"
 edition = "2021"
 authors = ["Daqiq Licensing Architecture Team"]
-description = "Pure native Win32 Rust offline license studio for Daqiq Desktop v4.9.1"
+description = "Pure native Win32/Direct2D Rust offline license studio for Daqiq Desktop v4.9.2"
 
 [features]
 default = ["sqlite"]

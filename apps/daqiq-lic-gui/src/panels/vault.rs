@@ -214,16 +214,12 @@ impl VaultView {
     pub fn update_from_state(&self, state: &AppState) {
         set_window_text(self.lbl_key_id, &format!("Key ID: {}", state.active_key_id));
         set_window_text(self.txt_pubkey, &state.active_public_key);
-        set_window_text(self.lbl_fingerprint, &format!("SHA-256 Fingerprint: {}", state.active_key_fingerprint));
+        set_window_text(self.lbl_fingerprint, &format!("Key FP: {}", state.key_fp_display()));
 
-        let pairing_text = match &state.pairing_status {
-            Some(daqiq_lic_core::PublicKeyMatchResult::Match) => {
-                "تطابق کلید: ۱۰۰٪ همگام با کلید پیش‌فرض Daqiq v4.9.1 ✓"
-            }
-            Some(daqiq_lic_core::PublicKeyMatchResult::Mismatch { .. }) => {
-                "هشدار: کلید فعال با کلید پیش‌فرض Daqiq v4.9.1 یکسان نیست!"
-            }
-            _ => "وضعیت تطابق با Daqiq: نامشخص",
+        let pairing_text = if state.is_paired_with_official_daqiq() {
+            "وضعیت تطابق: ۱۰۰٪ منطبق با کلید رسمی Daqiq v4.9.2 (Paired) ✓"
+        } else {
+            "هشدار: مغایرت با کلید رسمی Daqiq v4.9.2 (7925-3864-0164)! لایسنس‌های صادره رد خواهند شد."
         };
         set_window_text(self.lbl_pairing_badge, pairing_text);
 

@@ -46,21 +46,26 @@ pub enum PublicKeyMatchResult {
     Invalid(String),
 }
 
-/// Computes deterministic short key fingerprint (first 12 hex chars of SHA-256 over raw public key bytes)
+/// Computes deterministic short key fingerprint matching Daqiq v4.9.2 PR #40:
+/// SHA-256 over raw 32-byte Ed25519 public key, formatted as uppercase `XXXX-XXXX-XXXX` (e.g. `7925-3864-0164`).
 pub fn compute_key_fingerprint(public_key_b64: &str) -> String {
     let clean = public_key_b64.trim().replace(&['\r', '\n', ' ', '\t'][..], "");
     if let Ok(raw) = BASE64_STANDARD.decode(&clean) {
-        let mut hasher = Sha256::new();
-        hasher.update(&raw);
-        let hex = format!("{:x}", hasher.finalize());
-        if hex.len() >= 12 {
-            hex[..12].to_string()
-        } else {
-            hex
+        if raw.len() == 32 {
+            let mut hasher = Sha256::new();
+            hasher.update(&raw);
+            let hex = format!("{:X}", hasher.finalize());
+            if hex.len() >= 12 {
+                return format!("{}-{}-{}", &hex[0..4], &hex[4..8], &hex[8..12]);
+            }
         }
-    } else {
-        "نامعتبر".to_string()
     }
+    "نامعتبر".to_string()
+}
+
+/// Formats key fingerprint display string matching Daqiq PR #40: `f"{key_id} · {fingerprint}"`
+pub fn compute_key_fingerprint_display(key_id: &str, public_key_b64: &str) -> String {
+    format!("{} · {}", key_id, compute_key_fingerprint(public_key_b64))
 }
 
 /// Compares the active vault public key against an expected Daqiq public key (Base64 or PEM)
@@ -448,6 +453,16 @@ impl KeyVault {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_exact_pr40_fingerprint_algorithm() {
+        let prod_pub = "tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=";
+        let fp = compute_key_fingerprint(prod_pub);
+        assert_eq!(fp, "7925-3864-0164");
+
+        let display = compute_key_fingerprint_display("daqiq-prod-v1", prod_pub);
+        assert_eq!(display, "daqiq-prod-v1 · 7925-3864-0164");
+    }
 
     #[test]
     fn test_vault_roundtrip() {

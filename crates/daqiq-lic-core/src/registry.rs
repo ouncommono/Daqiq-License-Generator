@@ -219,19 +219,30 @@ impl RegistryDb {
 
 #[cfg(not(feature = "sqlite"))]
 pub struct RegistryDb {
+    path: Option<std::path::PathBuf>,
     records: std::sync::Mutex<Vec<RegistryRecord>>,
 }
 
 #[cfg(not(feature = "sqlite"))]
 impl RegistryDb {
-    pub fn open(_path: &Path) -> Result<Self, LicError> {
+    pub fn open(path: &Path) -> Result<Self, LicError> {
+        let mut list = Vec::new();
+        if path.exists() {
+            if let Ok(content) = std::fs::read_to_string(path) {
+                if let Ok(parsed) = serde_json::from_str::<Vec<RegistryRecord>>(&content) {
+                    list = parsed;
+                }
+            }
+        }
         Ok(Self {
-            records: std::sync::Mutex::new(Vec::new()),
+            path: Some(path.to_path_buf()),
+            records: std::sync::Mutex::new(list),
         })
     }
 
     pub fn open_in_memory() -> Result<Self, LicError> {
         Ok(Self {
+            path: None,
             records: std::sync::Mutex::new(Vec::new()),
         })
     }
@@ -285,6 +296,11 @@ impl RegistryDb {
                 full_envelope_json: full_json,
                 created_at: now_utc,
             });
+        }
+        if let Some(ref p) = self.path {
+            if let Ok(json_text) = serde_json::to_string_pretty(&*lock) {
+                let _ = std::fs::write(p, json_text);
+            }
         }
         Ok(())
     }

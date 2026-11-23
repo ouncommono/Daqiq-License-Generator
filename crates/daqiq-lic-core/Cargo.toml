@@ -1,6 +1,6 @@
 [package]
 name = "daqiq-lic-core"
-version = "1.4.1"
+version = "1.4.2"
 edition = "2021"
 authors = ["Daqiq Licensing Architecture Team"]
 description = "High-assurance cryptographic licensing core for Daqiq Desktop v4.9.1"

@@ -21,7 +21,7 @@ pub fn init_log() -> PathBuf {
     let dir = get_app_data_dir();
     let log_path = dir.join("startup.log");
     let now = chrono::Utc::now().to_rfc3339();
-    let header = format!("[{now}] [BOOT_START] Daqiq License Studio v1.4.1 starting...\n");
+    let header = format!("[{now}] [BOOT_START] Daqiq License Studio v1.4.2 starting...\n");
     let _ = fs::write(&log_path, header);
     log_path
 }

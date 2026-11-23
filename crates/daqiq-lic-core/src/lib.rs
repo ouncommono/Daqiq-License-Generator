@@ -20,8 +20,9 @@ pub use registry::{RegistryDb, RegistryRecord};
 pub use schema::{
     CustomerInfo, DeviceRequest, LicenseEnvelope, LicensePayload, LicenseSpec,
     ALL_FEATURE_KEYS, DEFAULT_KEY_ID, DEFAULT_PRODUCT_ID, DEFAULT_PROD_PUBLIC_KEY,
+    DEFAULT_PROD_KEY_FP,
 };
 pub use vault::{
-    compare_public_key, compute_key_fingerprint, verify_daqiq_binary_pairing, BinaryPairingResult,
-    KeyVault, PublicKeyMatchResult, VaultEnvelope,
+    compare_public_key, compute_key_fingerprint, compute_key_fingerprint_display,
+    verify_daqiq_binary_pairing, BinaryPairingResult, KeyVault, PublicKeyMatchResult, VaultEnvelope,
 };

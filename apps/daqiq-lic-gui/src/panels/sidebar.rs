@@ -38,7 +38,7 @@ impl SidebarView {
         );
         let lbl_subtitle = create_label(
             parent,
-            "نسخه ۱.۴.۱ - Win32 Native",
+            "نسخه ۱.۴.۲ - Win32 Direct2D",
             0, 44, 210, 18,
             1011,
             fonts.small,
@@ -174,21 +174,12 @@ impl SidebarView {
         set_window_text(self.btn_vault, vault_title);
 
         set_window_text(self.lbl_key_id, &format!("Key: {}", state.active_key_id));
-        let fp_short = if state.active_key_fingerprint.len() > 16 {
-            &state.active_key_fingerprint[..16]
-        } else {
-            &state.active_key_fingerprint
-        };
-        set_window_text(self.lbl_fingerprint, &format!("FP: {}...", fp_short));
+        set_window_text(self.lbl_fingerprint, &format!("FP: {}", state.active_key_fingerprint));
 
-        let pairing_text = match &state.pairing_status {
-            Some(daqiq_lic_core::PublicKeyMatchResult::Match) => {
-                "تطابق کلید: ۱۰۰٪ همگام با Daqiq v4.9.1 ✓"
-            }
-            Some(daqiq_lic_core::PublicKeyMatchResult::Mismatch { .. }) => {
-                "هشدار: عدم تطابق با کلید پیش‌فرض Daqiq!"
-            }
-            _ => "تطابق با Daqiq: نامشخص",
+        let pairing_text = if state.is_paired_with_official_daqiq() {
+            "تطابق کلید: ۱۰۰٪ همگام با Daqiq v4.9.2 ✓"
+        } else {
+            "هشدار: مغایرت با کلید رسمی Daqiq v4.9.2!"
         };
         set_window_text(self.lbl_pairing_badge, pairing_text);
     }

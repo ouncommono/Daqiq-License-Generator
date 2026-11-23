@@ -132,10 +132,39 @@ impl AppState {
             ThemeMode::Dark
         };
 
-        // Initialize vault with production key ID
-        let (vault, _env) = KeyVault::create_vault(DEFAULT_KEY_ID, "daqiq").unwrap();
-        let pubkey = vault.public_key_b64.clone();
-        let fp = vault.fingerprint();
+        // Persistent encrypted vault at %LOCALAPPDATA%\DaqiqLicenseGenerator\vault.dqkey
+        let vault_file = data_dir.join("vault.dqkey");
+        let (vault, key_id, pubkey, fp) = if vault_file.exists() {
+            if let Ok(loaded) = KeyVault::load_from_file(&vault_file, "daqiq") {
+                let kid = loaded.key_id.clone();
+                let p = loaded.public_key_b64.clone();
+                let f = loaded.fingerprint();
+                (Some(loaded), kid, p, f)
+            } else if let Ok(content) = std::fs::read_to_string(&vault_file) {
+                if let Ok(env) = serde_json::from_str::<daqiq_lic_core::VaultEnvelope>(&content) {
+                    let f = daqiq_lic_core::compute_key_fingerprint(&env.public_key);
+                    (None, env.key_id, env.public_key, f)
+                } else {
+                    let (v, _) = KeyVault::create_vault(DEFAULT_KEY_ID, "daqiq").unwrap();
+                    let _ = v.save_to_file(&vault_file, "daqiq");
+                    let p = v.public_key_b64.clone();
+                    let f = v.fingerprint();
+                    (Some(v), DEFAULT_KEY_ID.to_string(), p, f)
+                }
+            } else {
+                let (v, _) = KeyVault::create_vault(DEFAULT_KEY_ID, "daqiq").unwrap();
+                let _ = v.save_to_file(&vault_file, "daqiq");
+                let p = v.public_key_b64.clone();
+                let f = v.fingerprint();
+                (Some(v), DEFAULT_KEY_ID.to_string(), p, f)
+            }
+        } else {
+            let (v, _) = KeyVault::create_vault(DEFAULT_KEY_ID, "daqiq").unwrap();
+            let _ = v.save_to_file(&vault_file, "daqiq");
+            let p = v.public_key_b64.clone();
+            let f = v.fingerprint();
+            (Some(v), DEFAULT_KEY_ID.to_string(), p, f)
+        };
 
         let rand_num: u32 = rand::random::<u32>() % 900000 + 100000;
         let initial_lic_id = format!("LIC-{}-{:06}", today_str.replace('/', ""), rand_num);
@@ -143,8 +172,8 @@ impl AppState {
         let mut state = Self {
             active_tab: ActiveTab::Generator,
             theme_mode,
-            vault: Some(vault),
-            active_key_id: DEFAULT_KEY_ID.to_string(),
+            vault,
+            active_key_id: key_id,
             active_public_key: pubkey,
             active_key_fingerprint: fp,
             db,
@@ -416,6 +445,15 @@ impl AppState {
         self.pairing_status = Some(compare_public_key(active, candidate));
     }
 
+    pub fn is_paired_with_official_daqiq(&self) -> bool {
+        self.active_public_key.trim() == DEFAULT_PROD_PUBLIC_KEY
+            || self.active_key_fingerprint.trim() == daqiq_lic_core::DEFAULT_PROD_KEY_FP
+    }
+
+    pub fn key_fp_display(&self) -> String {
+        format!("{} · {}", self.active_key_id, self.active_key_fingerprint)
+    }
+
     pub fn check_binary_pairing(&mut self, file_path_str: &str) {
         let p = Path::new(file_path_str);
         self.binary_pairing_path = file_path_str.to_string();
@@ -512,8 +550,8 @@ impl AppState {
             true,
             "ارزیابی موفق: لایسنس در Daqiq پذیرفته خواهد شد ✓".to_string(),
             format!(
-                "کلیه شرایط اعتبارسنجی PR #39 (شناسه دستگاه، تاریخ‌ها و نسخه {}) احراز گردید.",
-                if self.sim_version.is_empty() { "4.9.1" } else { &self.sim_version }
+                "کلیه شرایط اعتبارسنجی PR #40 (شناسه دستگاه، تاریخ‌ها و نسخه {}) احراز گردید.",
+                if self.sim_version.is_empty() { "4.9.2" } else { &self.sim_version }
             ),
         ));
     }

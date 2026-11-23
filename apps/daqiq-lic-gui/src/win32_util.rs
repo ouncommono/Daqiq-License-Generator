@@ -257,8 +257,8 @@ pub fn create_edit(
 ) -> HWND {
     let class_name = to_wstring("EDIT");
     let text_w = to_wstring(text);
-    let mut style = WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_BORDER;
-    let mut ex_style = WS_EX_CLIENTEDGE;
+    let mut style = WS_CHILD | WS_VISIBLE | WS_TABSTOP;
+    let mut ex_style = 0;
 
     if rtl {
         ex_style |= WS_EX_RTLREADING | WS_EX_RIGHT;

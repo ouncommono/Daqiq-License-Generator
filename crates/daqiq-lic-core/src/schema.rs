@@ -21,6 +21,7 @@ pub const ALL_FEATURE_KEYS: [&str; 10] = [
 pub const DEFAULT_PRODUCT_ID: &str = "daqiq.desktop";
 pub const DEFAULT_KEY_ID: &str = "daqiq-prod-v1";
 pub const DEFAULT_PROD_PUBLIC_KEY: &str = "tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=";
+pub const DEFAULT_PROD_KEY_FP: &str = "7925-3864-0164";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CustomerInfo {

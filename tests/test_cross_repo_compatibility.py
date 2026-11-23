@@ -1,7 +1,7 @@
-"""Cross-Language Compatibility Gate: Daqiq PR #39 Verifier vs Rust-Generated Licenses.
+"""Cross-Language Compatibility Gate: Daqiq PR #40 Verifier vs Rust-Generated Licenses.
 
-Proves mathematically that licenses generated following Daqiq-License-Generator v1.3.0
-canonical JSON + Ed25519 specification are 100% accepted by Daqiq v4.9.1 (PR #39).
+Proves mathematically that licenses generated following Daqiq-License-Generator v1.4.2
+canonical JSON + Ed25519 specification and Key FP are 100% accepted by Daqiq v4.9.2 (PR #40).
 """
 
 import base64
@@ -13,7 +13,7 @@ import sys
 from cryptography.hazmat.primitives.asymmetric import ed25519
 import pytest
 
-# Test hardware identifiers from Daqiq PR #39 test vectors
+# Test hardware identifiers from Daqiq PR #40 test vectors
 HWID_1 = "fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e"
 HWID_2 = "fp_v1:cc12b7ba73d61e6240c106bb3239c09690102a0ca9f448497532733e8a5382cf"
 HWID_3 = "fp_v1:112240a4e47ec9659a35161c17b93af2d36347155a138cac4ccafd8a9b6e5f0d"
@@ -36,9 +36,10 @@ DOMAIN_PREFIX = b"DAQIQ-LICENSE-V1\n"
 
 def _get_daqiq_verifier():
     candidate_paths = [
+        os.environ.get("DAQIQ_PR40_DIR", ""),
         os.environ.get("DAQIQ_PR39_DIR", ""),
         r"d:\Projects\Antigravity\Daqiq",
-        os.path.join(os.environ.get("TEMP", ""), "daqiq_pr39"),
+        os.path.join(os.environ.get("TEMP", ""), "daqiq_pr40"),
     ]
     daqiq_path = None
     for p in candidate_paths:
@@ -47,7 +48,7 @@ def _get_daqiq_verifier():
             break
 
     if not daqiq_path:
-        pytest.skip("Daqiq PR #39 directory not found")
+        pytest.skip("Daqiq PR #40 directory not found")
 
     if daqiq_path not in sys.path:
         sys.path.insert(0, daqiq_path)
@@ -58,7 +59,19 @@ def _get_daqiq_verifier():
         from licensing.keys import KeyRegistry
         return LicenseVerifier, KeyRegistry, ValidationStatus, canonicalize_payload
     except ImportError as e:
-        pytest.skip(f"Could not import Daqiq PR #39 licensing module: {e}")
+        pytest.skip(f"Could not import Daqiq PR #40 licensing module: {e}")
+
+
+def test_key_fingerprint_parity_with_pr40():
+    """Verify Key FP algorithm produces exact '7925-3864-0164' for daqiq-prod-v1."""
+    _get_daqiq_verifier()
+    from licensing.keys import compute_key_fingerprint
+    raw_b64 = "tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA="
+    raw_bytes = base64.b64decode(raw_b64)
+    fp = compute_key_fingerprint(raw_bytes)
+    assert fp == "7925-3864-0164"
+    assert len(fp) == 14
+    assert fp.count("-") == 2
 
 
 @pytest.fixture

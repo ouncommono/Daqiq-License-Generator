@@ -19,8 +19,8 @@ use windows_sys::Win32::Foundation::{
 };
 use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
 use windows_sys::Win32::Graphics::Gdi::{
-    RedrawWindow, SetBkColor, SetBkMode, SetTextColor, UpdateWindow, HDC, RDW_ALLCHILDREN,
-    RDW_ERASE, RDW_INVALIDATE, TRANSPARENT,
+    BeginPaint, EndPaint, RedrawWindow, SetBkColor, SetBkMode, SetTextColor, UpdateWindow, HDC,
+    PAINTSTRUCT, RDW_ALLCHILDREN, RDW_ERASE, RDW_INVALIDATE, TRANSPARENT,
 };
 use windows_sys::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -36,8 +36,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     MessageBoxW, PostQuitMessage, RegisterClassExW, ShowWindow, SystemParametersInfoW,
     TranslateMessage, CS_HREDRAW, CS_VREDRAW, MB_ICONERROR, MB_ICONINFORMATION,
     MB_OK, MSG, SPI_GETWORKAREA, SW_SHOW, WM_COMMAND, WM_CREATE, WM_CTLCOLORBTN, WM_CTLCOLOREDIT,
-    WM_CTLCOLORSTATIC, WM_DESTROY, WM_SIZE, WNDCLASSEXW, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
-    WS_EX_APPWINDOW, WS_EX_CONTROLPARENT, WS_OVERLAPPEDWINDOW, WS_POPUP,
+    WM_CTLCOLORSTATIC, WM_DESTROY, WM_PAINT, WM_SIZE, WNDCLASSEXW, WS_CLIPCHILDREN,
+    WS_CLIPSIBLINGS, WS_EX_APPWINDOW, WS_EX_CONTROLPARENT, WS_OVERLAPPEDWINDOW, WS_POPUP,
 };
 
 use daqiq_lic_core::{
@@ -71,6 +71,7 @@ pub struct AppWindow {
     pub state: AppState,
     pub fonts: Fonts,
     pub theme_gdi: ThemeGdiResources,
+    // pub d2d: Option<crate::d2d::D2dContext>,
     pub sidebar: Option<SidebarView>,
     pub generator: Option<GeneratorView>,
     pub ledger: Option<LedgerView>,
@@ -232,7 +233,7 @@ fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
     let report = json!({
         "status": "ok",
         "app_name": "Daqiq License Generator Studio",
-        "version": "1.4.1",
+        "version": "1.4.2",
         "target_product": DEFAULT_PRODUCT_ID,
         "default_key_id": DEFAULT_KEY_ID,
         "default_public_key": DEFAULT_PROD_PUBLIC_KEY,
@@ -287,6 +288,7 @@ fn run_headless_ui_self_test(report_path: Option<PathBuf>) -> Result<(), String>
         state: AppState::new(),
         fonts: Fonts::new(),
         theme_gdi: ThemeGdiResources::new(ThemeMode::Dark),
+        // d2d: None,
         sidebar: None,
         generator: None,
         ledger: None,
@@ -428,7 +430,7 @@ fn run_headless_ui_self_test(report_path: Option<PathBuf>) -> Result<(), String>
     let report = json!({
         "status": "ok",
         "app_name": "Daqiq License Generator Studio",
-        "version": "1.4.1",
+        "version": "1.4.2",
         "ui_subsystem": "pure_win32_native",
         "tests": [
             {"tab": "generator", "actions": ["preset_apply", "text_edit", "license_generation", "token_encode"], "passed": true},
@@ -526,6 +528,10 @@ unsafe extern "system" fn wnd_proc(
             GetClientRect(hwnd, &mut rect);
             let w = rect.right - rect.left;
             let h = rect.bottom - rect.top;
+
+            // if let Some(d2d) = &mut app.d2d {
+            //     d2d.resize(w.max(1) as u32, h.max(1) as u32);
+            // }
 
             let sidebar_w = 220;
             let content_w = w - sidebar_w;
@@ -830,12 +836,21 @@ unsafe extern "system" fn wnd_proc(
                         }
                         match KeyVault::create_vault(&key_id, &pass) {
                             Ok((v, _)) => {
+                                let vault_file = crate::startup_log::get_app_data_dir().join("vault.dqkey");
+                                let _ = v.save_to_file(&vault_file, &pass);
+                                app.state.config.last_vault_path = Some(vault_file.to_string_lossy().to_string());
+                                app.state.config.save();
+
                                 app.state.active_key_id = v.key_id.clone();
                                 app.state.active_public_key = v.public_key_b64.clone();
                                 app.state.active_key_fingerprint = v.fingerprint();
                                 app.state.vault = Some(v);
                                 app.state.check_key_pairing();
                                 vault_v.update_from_state(&app.state);
+                                if let Some(sidebar) = &app.sidebar {
+                                    sidebar.update_from_state(&app.state);
+                                }
+                                RedrawWindow(hwnd, std::ptr::null(), 0 as _, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
                                 show_message(hwnd, "کلید جدید ساخته شد", "کلید جدید با موفقیت ایجاد گردید و به عنوان کلید فعال تنظیم شد.", false);
                             }
                             Err(e) => {
@@ -869,14 +884,24 @@ unsafe extern "system" fn wnd_proc(
                         }
                         let mut raw_32 = [0u8; 32];
                         raw_32.copy_from_slice(&bytes_vec);
-                        match KeyVault::import_private_key(&key_id, &raw_32, if pass.is_empty() { "daqiq" } else { &pass }) {
+                        let use_pass = if pass.is_empty() { "daqiq" } else { &pass };
+                        match KeyVault::import_private_key(&key_id, &raw_32, use_pass) {
                             Ok((v, _env)) => {
+                                let vault_file = crate::startup_log::get_app_data_dir().join("vault.dqkey");
+                                let _ = v.save_to_file(&vault_file, use_pass);
+                                app.state.config.last_vault_path = Some(vault_file.to_string_lossy().to_string());
+                                app.state.config.save();
+
                                 app.state.active_key_id = v.key_id.clone();
                                 app.state.active_public_key = v.public_key_b64.clone();
                                 app.state.active_key_fingerprint = v.fingerprint();
                                 app.state.vault = Some(v);
                                 app.state.check_key_pairing();
                                 vault_v.update_from_state(&app.state);
+                                if let Some(sidebar) = &app.sidebar {
+                                    sidebar.update_from_state(&app.state);
+                                }
+                                RedrawWindow(hwnd, std::ptr::null(), 0 as _, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
                                 show_message(hwnd, "موفق", "کلید خصوصی با موفقیت وارد گردید و به عنوان کلید فعال تنظیم شد.", false);
                             }
                             Err(e) => {
@@ -907,6 +932,12 @@ unsafe extern "system" fn wnd_proc(
             SetBkColor(hdc, app.theme_gdi.colors.card_bg);
             SetTextColor(hdc, app.theme_gdi.colors.text_primary);
             app.theme_gdi.brush_card as isize
+        }
+        WM_PAINT => {
+            let mut ps: PAINTSTRUCT = std::mem::zeroed();
+            let _hdc = BeginPaint(hwnd, &mut ps);
+            EndPaint(hwnd, &ps);
+            0
         }
         WM_DESTROY => {
             PostQuitMessage(0);
@@ -1006,7 +1037,7 @@ fn main() {
 
     // Check for --version flag
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        print_console("1.4.1");
+        print_console("1.4.2");
         std::process::exit(0);
     }
 
@@ -1102,6 +1133,7 @@ fn main() {
         state,
         fonts,
         theme_gdi: ThemeGdiResources::new(initial_theme),
+        // d2d: crate::d2d::D2dContext::new().ok(),
         sidebar: None,
         generator: None,
         ledger: None,
