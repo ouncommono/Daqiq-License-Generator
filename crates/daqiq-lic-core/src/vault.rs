@@ -10,7 +10,7 @@ use pbkdf2::pbkdf2;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::crypto::{canonicalize_payload, verify_license_envelope, DOMAIN_PREFIX};
@@ -34,6 +34,82 @@ pub struct VaultEnvelope {
     pub ciphertext: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PublicKeyMatchResult {
+    Match,
+    Mismatch {
+        expected_fp: String,
+        actual_fp: String,
+    },
+    Invalid(String),
+}
+
+/// Computes deterministic short key fingerprint (first 12 hex chars of SHA-256 over raw public key bytes)
+pub fn compute_key_fingerprint(public_key_b64: &str) -> String {
+    let clean = public_key_b64.trim().replace(&['\r', '\n', ' ', '\t'][..], "");
+    if let Ok(raw) = BASE64_STANDARD.decode(&clean) {
+        let mut hasher = Sha256::new();
+        hasher.update(&raw);
+        let hex = format!("{:x}", hasher.finalize());
+        if hex.len() >= 12 {
+            hex[..12].to_string()
+        } else {
+            hex
+        }
+    } else {
+        "نامعتبر".to_string()
+    }
+}
+
+/// Compares the active vault public key against an expected Daqiq public key (Base64 or PEM)
+pub fn compare_public_key(active_pub_b64: &str, candidate_b64_or_pem: &str) -> PublicKeyMatchResult {
+    let clean_candidate = candidate_b64_or_pem.trim();
+    if clean_candidate.is_empty() {
+        return PublicKeyMatchResult::Invalid("کلید عمومی خالی است.".to_string());
+    }
+
+    let clean_b64 = if clean_candidate.contains("-----BEGIN") {
+        clean_candidate
+            .lines()
+            .filter(|l| !l.starts_with("-----"))
+            .collect::<Vec<_>>()
+            .join("")
+    } else {
+        clean_candidate.replace(&['\r', '\n', ' ', '\t'][..], "")
+    };
+
+    let active_clean = active_pub_b64.trim().replace(&['\r', '\n', ' ', '\t'][..], "");
+    let active_bytes = match BASE64_STANDARD.decode(&active_clean) {
+        Ok(b) if b.len() == 32 => b,
+        _ => return PublicKeyMatchResult::Invalid("کلید عمومی فعال مخزن نامعتبر است.".to_string()),
+    };
+
+    let cand_bytes = match BASE64_STANDARD.decode(&clean_b64) {
+        Ok(b) => b,
+        Err(e) => {
+            return PublicKeyMatchResult::Invalid(format!("فرمت Base64 کلید وارد شده نامعتبر است: {e}"))
+        }
+    };
+
+    if cand_bytes.len() != 32 {
+        return PublicKeyMatchResult::Invalid(format!(
+            "طول کلید عمومی باید دقیقاً ۳۲ بایت باشد؛ دریافت شد: {} بایت.",
+            cand_bytes.len()
+        ));
+    }
+
+    if active_bytes == cand_bytes {
+        PublicKeyMatchResult::Match
+    } else {
+        let expected_fp = compute_key_fingerprint(&clean_b64);
+        let actual_fp = compute_key_fingerprint(&active_clean);
+        PublicKeyMatchResult::Mismatch {
+            expected_fp,
+            actual_fp,
+        }
+    }
+}
+
 pub struct KeyVault {
     pub key_id: String,
     pub public_key_b64: String,
@@ -51,6 +127,16 @@ impl KeyVault {
         Ok((vault, envelope))
     }
 
+    pub fn import_private_key(
+        key_id: &str,
+        raw_bytes: &[u8; 32],
+        passphrase: &str,
+    ) -> Result<(Self, VaultEnvelope), LicError> {
+        let vault = Self::from_signing_key_bytes(key_id, raw_bytes);
+        let envelope = vault.export_vault_envelope(passphrase)?;
+        Ok((vault, envelope))
+    }
+
     pub fn from_signing_key_bytes(key_id: &str, raw_bytes: &[u8; 32]) -> Self {
         let signing_key = SigningKey::from_bytes(raw_bytes);
         let verifying_key: VerifyingKey = signing_key.verifying_key();
@@ -64,6 +150,10 @@ impl KeyVault {
             public_key_b64,
             private_key_bytes: Zeroizing::new(key_copy),
         }
+    }
+
+    pub fn fingerprint(&self) -> String {
+        compute_key_fingerprint(&self.public_key_b64)
     }
 
     pub fn signing_key(&self) -> SigningKey {
@@ -214,5 +304,32 @@ mod tests {
         // Unlock with wrong passphrase
         let failed = KeyVault::load_from_envelope(&envelope, "WrongPassword");
         assert!(failed.is_err());
+    }
+
+    #[test]
+    fn test_public_key_pairing_checker() {
+        let (vault, _env) = KeyVault::create_vault("daqiq-prod-v1", "SecretPass123").unwrap();
+        let active_pub = &vault.public_key_b64;
+
+        // Exact match
+        let res = compare_public_key(active_pub, active_pub);
+        assert_eq!(res, PublicKeyMatchResult::Match);
+
+        // Different public key
+        let diff_pub = "tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=";
+        if active_pub != diff_pub {
+            let res = compare_public_key(active_pub, diff_pub);
+            match res {
+                PublicKeyMatchResult::Mismatch { expected_fp, actual_fp } => {
+                    assert_eq!(expected_fp, compute_key_fingerprint(diff_pub));
+                    assert_eq!(actual_fp, vault.fingerprint());
+                }
+                _ => panic!("Expected Mismatch"),
+            }
+        }
+
+        // Invalid key
+        let res_invalid = compare_public_key(active_pub, "not-a-valid-base64-key");
+        assert!(matches!(res_invalid, PublicKeyMatchResult::Invalid(_)));
     }
 }

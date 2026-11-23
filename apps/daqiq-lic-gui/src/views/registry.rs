@@ -77,7 +77,7 @@ pub fn view_registry(state: &AppState) -> Element<'_, Message> {
         .align_y(Alignment::Center),
     )
     .padding([10, 16])
-    .style(move |_| code_box_style(is_dark));
+    .style(move |th| code_box_style(th, is_dark));
 
     // Table Rows
     let mut table_rows = column![].spacing(6);

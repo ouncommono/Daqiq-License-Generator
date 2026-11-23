@@ -7,11 +7,11 @@ use crate::theme::{card_style, status_pill_style, FONT_BOLD, FONT_MONO, FONT_REG
 pub fn view_inspector(state: &AppState) -> Element<'_, Message> {
     let is_dark = state.theme_mode == ThemeMode::Dark;
 
-    // ================= LEFT COLUMN: Inspector =================
+    // ================= RIGHT COLUMN: Inspector =================
     let inspect_header = row![
-        text("بررسی و اعتبارسنجی فایل لایسنس (.daqlic)").font(FONT_BOLD).size(15),
+        text("بررسی و اعتبارسنجی لایسنس یا توکن متنی").font(FONT_BOLD).size(15),
         Space::new().width(Length::Fill),
-        button(text("📂 انتخاب فایل لایسنس").font(FONT_REGULAR).size(12))
+        button(text("📂 باز کردن فایل .daqlic").font(FONT_REGULAR).size(12))
             .on_press(Message::InspectFilePicked)
             .padding([6, 12]),
     ]
@@ -19,19 +19,19 @@ pub fn view_inspector(state: &AppState) -> Element<'_, Message> {
 
     let mut left_content = column![
         inspect_header,
-        text("محتوای JSON یا فایل .daqlic را در کادر زیر وارد کنید:")
+        text("محتوای JSON یا توکن متنی Base64 را در کادر زیر وارد کنید:")
             .font(FONT_REGULAR)
             .size(12),
         text_input(
-            "{\"envelope_version\": 1, \"algorithm\": \"Ed25519\", ...}",
-            &state.inspect_json,
+            "محتوای فایل .daqlic یا توکن متنی Base64 (eyJ...)",
+            &state.inspect_text,
         )
         .on_input(Message::InspectTextChanged)
         .font(FONT_MONO)
         .padding(8),
         column![
-            text("کلید عمومی جهت بررسی (اختیاری - پیش‌فرض کلید فعال)").font(FONT_REGULAR).size(12),
-            text_input("خالی برای کلید پیش‌فرض سیستم", &state.custom_public_key)
+            text("کلید عمومی جهت بررسی (اختیاری - پیش‌فرض: کلید فعال مخزن)").font(FONT_REGULAR).size(12),
+            text_input("خالی برای کلید فعال مخزن", &state.custom_public_key)
                 .on_input(Message::CustomPubkeyChanged)
                 .font(FONT_MONO)
                 .padding(8),
@@ -71,20 +71,19 @@ pub fn view_inspector(state: &AppState) -> Element<'_, Message> {
             .spacing(6),
         )
         .padding(14)
-        .style(move |_| status_pill_style(*is_valid, is_dark));
+        .style(move |_th| status_pill_style(*is_valid, is_dark));
 
         left_content = left_content.push(status_box);
     }
 
     let left_card = container(left_content)
         .padding(16)
-        .height(Length::Fill)
         .style(move |th| card_style(th, is_dark));
 
-    // ================= RIGHT COLUMN: Simulator =================
+    // ================= LEFT COLUMN: Simulator =================
     let mut right_content = column![
-        text("شبیه‌ساز رفتار نرم‌افزار دقیق v4.9.0").font(FONT_BOLD).size(15),
-        text("ارزیابی کنید که آیا نرم‌افزار دقیق در تاریخ و سیستم مشخص، این لایسنس را می‌پذیرد یا خیر:")
+        text("شبیه‌ساز رفتار نرم‌افزار دقیق v4.9.1").font(FONT_BOLD).size(15),
+        text("ارزیابی کنید که آیا نرم‌افزار دقیق در تاریخ، نسخه و سیستم مشخص، این لایسنس را می‌پذیرد یا خیر:")
             .font(FONT_REGULAR)
             .size(12),
         column![
@@ -110,7 +109,7 @@ pub fn view_inspector(state: &AppState) -> Element<'_, Message> {
             .width(Length::FillPortion(1)),
             column![
                 text("نسخه فرضی برنامه").font(FONT_REGULAR).size(12),
-                text_input("4.9.0", &state.sim_version)
+                text_input("4.9.1", &state.sim_version)
                     .on_input(Message::SimVersionChanged)
                     .font(FONT_MONO)
                     .padding(8),
@@ -146,23 +145,21 @@ pub fn view_inspector(state: &AppState) -> Element<'_, Message> {
             .spacing(6),
         )
         .padding(14)
-        .style(move |_| status_pill_style(*is_ok, is_dark));
+        .style(move |_th| status_pill_style(*is_ok, is_dark));
 
         right_content = right_content.push(sim_box);
     }
 
     let right_card = container(right_content)
         .padding(16)
-        .height(Length::Fill)
         .style(move |th| card_style(th, is_dark));
 
     let content_row = row![
-        scrollable(left_card).width(Length::FillPortion(1)).height(Length::Fill),
-        scrollable(right_card).width(Length::FillPortion(1)).height(Length::Fill),
+        left_card.width(Length::FillPortion(1)),
+        right_card.width(Length::FillPortion(1)),
     ]
-    .spacing(20)
-    .height(Length::Fill)
-    .padding(20);
+    .spacing(16)
+    .width(Length::Fill);
 
-    content_row.into()
+    container(scrollable(content_row)).padding(16).into()
 }

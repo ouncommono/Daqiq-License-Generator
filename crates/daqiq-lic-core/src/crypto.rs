@@ -228,6 +228,13 @@ mod tests {
             min_app_version: Some("4.9.0".to_string()),
             not_before: "2026-11-22T00:00:00Z".to_string(),
             product_id: "daqiq.desktop".to_string(),
+            match_policy: None,
+            grace_period_days: None,
+            grace_mode: None,
+            expiry_warning_days: None,
+            max_clock_skew_hours: None,
+            quotas: None,
+            metadata: None,
         };
 
         let canon_bytes = canonicalize_payload(&payload).expect("Canonicalization should succeed");

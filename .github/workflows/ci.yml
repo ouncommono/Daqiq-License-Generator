@@ -1,4 +1,4 @@
-name: Daqiq License Generator v1.2.0 CI/CD
+name: Daqiq License Generator v1.3.0 CI/CD
 
 on:
   push:
@@ -51,18 +51,18 @@ jobs:
           $global:LASTEXITCODE = 0
           Write-Output "Security check clean: Zero secret signing keys detected."
 
-      - name: Clone Daqiq PR #38 Source of Truth
+      - name: Clone Daqiq PR #39 Source of Truth
         shell: pwsh
         run: |
-          $prDir = "$env:RUNNER_TEMP\daqiq_pr38"
+          $prDir = "$env:RUNNER_TEMP\daqiq_pr39"
           New-Item -ItemType Directory -Force -Path $prDir | Out-Null
           git clone --depth 1 https://github.com/ouncommono/Daqiq.git $prDir
           Push-Location $prDir
-          git fetch origin pull/38/head:pr38
-          git checkout pr38
+          git fetch origin pull/39/head:pr39
+          git checkout pr39
           Pop-Location
-          Write-Output "DAQIQ_PR38_DIR=$prDir" >> $env:GITHUB_ENV
-          Write-Output "Daqiq PR #38 source of truth checked out successfully."
+          Write-Output "DAQIQ_PR39_DIR=$prDir" >> $env:GITHUB_ENV
+          Write-Output "Daqiq PR #39 source of truth checked out successfully."
 
       - name: Run Cross-Repo Verification Gate (Python Verifier vs Spec)
         shell: pwsh
@@ -86,7 +86,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = (Get-Content VERSION).Trim()
-          if (-not $ver) { $ver = "1.2.0" }
+          if (-not $ver) { $ver = "1.3.0" }
           Write-Output "APP_VERSION=$ver" >> $env:GITHUB_ENV
           Write-Output "Building release binary for version $ver..."
           cargo build --release -p daqiq-license-generator
@@ -140,18 +140,18 @@ jobs:
             gh pr create `
               --base main `
               --head $branch `
-              --title "Release v${{ env.APP_VERSION }} — 100% Self-Contained Zero-WebView Native Rust Desktop App" `
-              --body "### Daqiq License Generator v${{ env.APP_VERSION }} (100% Native Rust Zero-WebView Overhaul)`n`n- **Zero WebView2 Dependency:** Pure Rust native GUI (iced + tiny-skia software renderer) running on any Windows 10/11 machine without WebView2, Edge, or external DLLs.`n- **100% Byte-for-Byte Valid .daqlic Licenses:** Fully verified against Daqiq v4.9.0 (PR #38).`n- **Ultra-lightweight Standalone Binary (< 25 MB):** Single portable executable (~5.5 MB) with PE GUI subsystem 2 (zero CMD window).`n- **Encrypted AES-256-GCM Key Vault:** PBKDF2-HMAC-SHA256 with 600,000 iterations and memory zeroization.`n- **Multi-Device Node-Locking:** Live fp_v1 HWID syntax & checksum validation with bulk paste and .daqreq file import.`n- **Embedded Offline Fonts:** Bundled local Vazirmatn & JetBrains Mono fonts with WCAG AA+ Dark & Light themes.`n- **Bundled SQLite Registry:** Local sales history and CSV export.`n- **Headless QA & Self-Test:** Non-blocking --self-test --report verification.`n- **Zero Node.js 20 Deprecation Warnings:** 100% clean CI/CD."
+              --title "Release v${{ env.APP_VERSION }} — Exact PR #39 Parity, Signature Fix & 60FPS UI" `
+              --body "### Daqiq License Generator v${{ env.APP_VERSION }} (Exact PR #39 Parity, Signature Fix & 60FPS UI)`n`n- **Strict 1:1 Parity with Daqiq PR #39 (v4.9.1):** Full support for trial licenses, grace modes, match policies, clock skew, version bounds, and compact Base64 tokens.`n- **Permanent Digital Signature Fix:** Eliminated signature rejection through exact canonical field mapping and introduced Public Key Pairing Verifier.`n- **Native 60FPS Hardware-Accelerated UI:** Powered by iced wgpu DX12/Vulkan with tiny-skia software fallback and zero-work view() architecture.`n- **Modern Desktop UI & Balanced Charcoal Dark Theme:** 220px right-anchored RTL sidebar, soft charcoal Dark theme (#1E222B) and crisp Light theme (#F4F6FA).`n- **Zero WebView2 & Zero External Dependencies:** Single portable standalone executable (< 25 MB) with PE GUI subsystem 2 (zero CMD window).`n- **Offline & Air-Gapped Security:** Bundled Vazirmatn font, AES-256-GCM encrypted vault with PBKDF2 (600,000 rounds) and memory zeroization.`n- **Excel-Compatible CSV Export:** Byte Order Mark (UTF-8 BOM) for flawless Persian encoding in Microsoft Excel.`n- **Automated QA & Self-Test:** Passed all 4 binary gates and cross-repo compatibility tests."
           }
 
       - name: Publish Production GitHub Release
-        if: github.ref == 'refs/heads/release/v1.2.0' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/release/v1.3.0' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "v${{ env.APP_VERSION }}"
-          $title = "Daqiq License Generator $tag (100% Self-Contained Zero-WebView Native Desktop)"
+          $title = "Daqiq License Generator $tag (Exact PR #39 Parity & 60FPS Native UI)"
           $exePath = "dist\Daqiq-License-Generator-v${{ env.APP_VERSION }}-win64.exe"
           $altExePath = "dist\Daqiq-License-Generator-v${{ env.APP_VERSION }}.exe"
           $sumsPath = "dist\SHA256SUMS.txt"
@@ -164,7 +164,7 @@ jobs:
           } else {
             gh release create $tag $exePath $altExePath $sumsPath $reportPath `
               --title $title `
-              --notes "## Daqiq License Generator $tag (100% Self-Contained Zero-WebView Native Rust Desktop)`n`nGround-up pure Rust native desktop license studio for Daqiq Desktop v4.9.0+.`n`n### Key Highlights:`n- **Zero WebView2 / Zero External Runtimes:** Replaced WebView2 with pure Rust native GUI (\`iced\` + \`tiny-skia\` software renderer) — guaranteed zero GPU/driver failures and zero Edge runtime dependency.`n- **Zero Console Window:** Native Windows GUI subsystem (PE Subsystem 2).`n- **Ultra-lightweight:** Portable single binary (~5.5 MB, well under the 25 MB limit).`n- **100% Offline & Air-Gapped:** Embedded Persian \`Vazirmatn\` and \`JetBrains Mono\` TTF fonts.`n- **Ed25519 & AES-256-GCM:** Encrypted key vault with PBKDF2 (600,000 iterations) and memory zeroization.`n- **SQLite Registry:** Local air-gapped ledger with CSV export and fast Clone & Renew.`n- **Multi-Device Node-Locking:** Strict \`fp_v1\` validation with bulk paste and \`.daqreq\` import.`n`n### Attached Binaries:`n- **Daqiq-License-Generator-v${{ env.APP_VERSION }}-win64.exe**`n- **Daqiq-License-Generator-v${{ env.APP_VERSION }}.exe**`n- **SHA256SUMS.txt**`n- **selftest_report.json**" `
+              --notes "## Daqiq License Generator $tag (Exact PR #39 Parity, Signature Fix & 60FPS Native UI)`n`nCommercial-grade, 100% offline native Windows desktop license studio for **Daqiq Desktop ERP v4.9.1+ (PR #39)**.`n`n### Highlights in v1.3.0:`n- **Exact 1:1 Parity with Daqiq PR #39 (v4.9.1):** Full alignment with all PR #39 schema rules, trial licenses, grace periods (soft/hard), clock skew tolerances, quotas, and compact Base64 tokens.`n- **Permanent Signature Rejection Fix:** Resolved signature verification mismatch through exact canonical field inclusion/omission matching and introduced the Public Key Pairing Verifier.`n- **60FPS Native Hardware Acceleration:** High-performance rendering via iced wgpu (DirectX 12 / Vulkan) with seamless tiny-skia software fallback — eliminating all scroll lag and UI stutter.`n- **Right-Anchored Modern RTL Sidebar & Theme Overhaul:** Professional soft charcoal dark theme (#1E222B) and crisp light theme (#F4F6FA) with bundled offline Persian Vazirmatn font.`n- **Zero WebView2 / Zero External Runtimes:** Single standalone portable executable (< 25 MB) with Windows GUI subsystem (PE Subsystem 2 — zero CMD window).`n- **Public Key Pairing Verifier:** In-app tool to instantly verify active key pair against Daqiq v4.9.1 production key (daqiq-prod-v1).`n- **Persian Excel Export:** CSV exports include UTF-8 BOM for perfect Persian text rendering in Microsoft Excel.`n`n### Attached Binaries & Verification Artifacts:`n- **Daqiq-License-Generator-v${{ env.APP_VERSION }}-win64.exe**`n- **Daqiq-License-Generator-v${{ env.APP_VERSION }}.exe**`n- **SHA256SUMS.txt**`n- **selftest_report.json**" `
               --latest `
               --prerelease=false
           }

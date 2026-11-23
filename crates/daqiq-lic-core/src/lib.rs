@@ -21,4 +21,6 @@ pub use schema::{
     CustomerInfo, DeviceRequest, LicenseEnvelope, LicensePayload, LicenseSpec,
     ALL_FEATURE_KEYS, DEFAULT_KEY_ID, DEFAULT_PRODUCT_ID, DEFAULT_PROD_PUBLIC_KEY,
 };
-pub use vault::{KeyVault, VaultEnvelope};
+pub use vault::{
+    compare_public_key, compute_key_fingerprint, KeyVault, PublicKeyMatchResult, VaultEnvelope,
+};

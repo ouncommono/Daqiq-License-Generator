@@ -5,450 +5,575 @@ use iced::{Alignment, Element, Length};
 
 use crate::state::{AppState, Message, Preset, ThemeMode};
 use crate::theme::{
-    card_style, code_box_style, status_pill_style, FONT_BOLD, FONT_MONO, FONT_REGULAR,
+    card_style, code_box_style, status_pill_style, subcard_style, warning_pill_style,
+    FONT_BOLD, FONT_MONO, FONT_REGULAR,
 };
 
 pub fn view_generator(state: &AppState) -> Element<'_, Message> {
     let is_dark = state.theme_mode == ThemeMode::Dark;
 
-    // ================= CARD 1: Customer Info =================
-    let card1_content = column![
-        text("مشخصات خریدار و لایسنس").font(FONT_BOLD).size(15),
-        row![
-            column![
-                text("نام مشتری / فروشگاه *").font(FONT_REGULAR).size(12),
-                text_input("مثال: فروشگاه برادران حسینی", &state.customer_name)
-                    .on_input(Message::CustomerNameChanged)
-                    .font(FONT_REGULAR)
-                    .padding(8),
+    // ================= RIGHT COLUMN =================
+    // Card 1: Customer Details & Presets
+    let card_customer = container(
+        column![
+            row![
+                text("👤 مشخصات مشتری و شناسه لایسنس").font(FONT_BOLD).size(14),
+                Space::new().width(Length::Fill),
             ]
-            .spacing(4)
-            .width(Length::FillPortion(2)),
-            column![
-                text("شناسه لایسنس *").font(FONT_REGULAR).size(12),
-                row![
-                    text_input("LIC-YYYYMMDD-XXXX", &state.license_id)
-                        .on_input(Message::LicenseIdChanged)
+            .align_y(Alignment::Center),
+
+            // Presets row
+            row![
+                text("پریست‌های سریع:").font(FONT_REGULAR).size(11),
+                button(text("آزمایشی").font(FONT_REGULAR).size(11))
+                    .on_press(Message::ApplyPreset(Preset::Trial))
+                    .padding([3, 7]),
+                button(text("استاندارد").font(FONT_REGULAR).size(11))
+                    .on_press(Message::ApplyPreset(Preset::Standard))
+                    .padding([3, 7]),
+                button(text("حرفه‌ای (۳ کاربر)").font(FONT_REGULAR).size(11))
+                    .on_press(Message::ApplyPreset(Preset::Pro))
+                    .padding([3, 7]),
+                button(text("سازمانی (۱۰ کاربر)").font(FONT_REGULAR).size(11))
+                    .on_press(Message::ApplyPreset(Preset::Enterprise))
+                    .padding([3, 7]),
+                button(text("دائمی").font(FONT_REGULAR).size(11))
+                    .on_press(Message::ApplyPreset(Preset::Perpetual))
+                    .padding([3, 7]),
+            ]
+            .spacing(5)
+            .align_y(Alignment::Center),
+
+            row![
+                column![
+                    text("نام مشتری یا فروشگاه *").font(FONT_REGULAR).size(12),
+                    text_input("مثال: فروشگاه برادران حسینی", &state.customer_name)
+                        .on_input(Message::CustomerNameChanged)
+                        .font(FONT_REGULAR)
+                        .padding(8),
+                ]
+                .spacing(4)
+                .width(Length::FillPortion(2)),
+
+                column![
+                    text("شناسه لایسنس *").font(FONT_REGULAR).size(12),
+                    row![
+                        text_input("LIC-YYYYMMDD-XXXX", &state.license_id)
+                            .on_input(Message::LicenseIdChanged)
+                            .font(FONT_MONO)
+                            .padding(8),
+                        button(text("🔄").size(14))
+                            .on_press(Message::RegenerateLicenseId)
+                            .padding([8, 10]),
+                    ]
+                    .spacing(4),
+                ]
+                .spacing(4)
+                .width(Length::FillPortion(1)),
+            ]
+            .spacing(10),
+
+            row![
+                column![
+                    text("سازمان / مجموعه (اختیاری)").font(FONT_REGULAR).size(12),
+                    text_input("مثال: شرکت داده‌پردازی سپهر", &state.customer_org)
+                        .on_input(Message::CustomerOrgChanged)
+                        .font(FONT_REGULAR)
+                        .padding(8),
+                ]
+                .spacing(4)
+                .width(Length::FillPortion(1)),
+
+                column![
+                    text("شماره تماس یا ایمیل (اختیاری)").font(FONT_REGULAR).size(12),
+                    text_input("+989123456789", &state.customer_contact)
+                        .on_input(Message::CustomerContactChanged)
                         .font(FONT_MONO)
                         .padding(8),
-                    button(text("🔄").size(14))
-                        .on_press(Message::RegenerateLicenseId)
-                        .padding([8, 12]),
                 ]
-                .spacing(4),
+                .spacing(4)
+                .width(Length::FillPortion(1)),
             ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
+            .spacing(10),
         ]
-        .spacing(12),
-        row![
-            column![
-                text("سازمان / شعبه (اختیاری)").font(FONT_REGULAR).size(12),
-                text_input("مثال: شعبه مرکزی تهران", &state.customer_org)
-                    .on_input(Message::CustomerOrgChanged)
-                    .font(FONT_REGULAR)
-                    .padding(8),
+        .spacing(10),
+    )
+    .padding(14)
+    .style(move |th| card_style(th, is_dark));
+
+    // Card 2: Hardware ID Management
+    let card_hwid = container(
+        column![
+            row![
+                text("🖥️ قفل سخت‌افزاری و شناسه‌های دستگاه (HWID)").font(FONT_BOLD).size(14),
+                Space::new().width(Length::Fill),
+                // Live HWID badge
+                container(
+                    text(&state.cached_hwid_badge).font(FONT_REGULAR).size(11),
+                )
+                .padding([2, 8])
+                .style(move |_th| {
+                    if state.cached_hwid_has_error {
+                        warning_pill_style(is_dark)
+                    } else if state.cached_hwid_valid_count > 0 {
+                        status_pill_style(true, is_dark)
+                    } else {
+                        status_pill_style(false, is_dark)
+                    }
+                }),
             ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
-            column![
-                text("اطلاعات تماس / تلفن (اختیاری)").font(FONT_REGULAR).size(12),
-                text_input("+989123456789", &state.customer_contact)
-                    .on_input(Message::CustomerContactChanged)
-                    .font(FONT_MONO)
-                    .padding(8),
-            ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
-        ]
-        .spacing(12),
-    ]
-    .spacing(12);
+            .align_y(Alignment::Center),
 
-    let card1 = container(card1_content)
-        .padding(16)
-        .style(move |th| card_style(th, is_dark));
+            text("شناسه سخت‌افزاری تولید شده توسط Daqiq v4.9.1 (با پیشوند fp_v1:) را وارد کنید. چند دستگاه را با خط جدید جدا کنید:")
+                .font(FONT_REGULAR)
+                .size(11),
 
-    // ================= CARD 2: Subscription Model & Timing =================
-    let is_perpetual = state.license_type == "perpetual";
+            text_input(
+                "fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e",
+                &state.hwid_text,
+            )
+            .on_input(Message::HwidTextChanged)
+            .font(FONT_MONO)
+            .padding(8),
 
-    let presets_row = row![
-        text("پریست‌های سریع:").font(FONT_REGULAR).size(12),
-        button(text("آزمایشی (۱ ماه)").font(FONT_REGULAR).size(11))
-            .on_press(Message::ApplyPreset(Preset::Trial))
-            .padding([4, 8]),
-        button(text("استاندارد (۱ سال)").font(FONT_REGULAR).size(11))
-            .on_press(Message::ApplyPreset(Preset::Standard))
-            .padding([4, 8]),
-        button(text("حرفه‌ای (۳ کاربر)").font(FONT_REGULAR).size(11))
-            .on_press(Message::ApplyPreset(Preset::Pro))
-            .padding([4, 8]),
-        button(text("سازمانی (۱۰ کاربر)").font(FONT_REGULAR).size(11))
-            .on_press(Message::ApplyPreset(Preset::Enterprise))
-            .padding([4, 8]),
-        button(text("دائمی (مادام‌العمر)").font(FONT_REGULAR).size(11))
-            .on_press(Message::ApplyPreset(Preset::Perpetual))
-            .padding([4, 8]),
-    ]
-    .spacing(6)
-    .align_y(Alignment::Center);
+            row![
+                button(
+                    row![
+                        text("📋").size(13),
+                        text("الصاق از کلیپ‌بورد").font(FONT_REGULAR).size(11),
+                    ]
+                    .spacing(5)
+                    .align_y(Alignment::Center),
+                )
+                .on_press(Message::PasteHwidFromClipboard)
+                .padding([6, 12]),
 
-    let card2_content = column![
-        text("مدل اشتراک و تاریخ‌های اعتبار").font(FONT_BOLD).size(15),
-        row![
-            column![
-                text("نوع لایسنس").font(FONT_REGULAR).size(12),
-                row![
-                    radio(
-                        "اشتراکی (دارای انقضا)",
-                        "subscription",
-                        Some(state.license_type.as_str()),
-                        |val| Message::LicenseTypeSelected(val.to_string()),
-                    )
-                    .font(FONT_REGULAR)
-                    .size(13),
-                    radio(
-                        "مادام‌العمر (دائمی)",
-                        "perpetual",
-                        Some(state.license_type.as_str()),
-                        |val| Message::LicenseTypeSelected(val.to_string()),
-                    )
-                    .font(FONT_REGULAR)
-                    .size(13),
-                ]
-                .spacing(16),
-            ]
-            .spacing(4)
-            .width(Length::FillPortion(2)),
-            column![
-                text("حداکثر دستگاه‌های مجاز").font(FONT_REGULAR).size(12),
+                button(
+                    row![
+                        text("📥").size(13),
+                        text("وارد کردن فایل درخواست (.daqreq)").font(FONT_REGULAR).size(11),
+                    ]
+                    .spacing(5)
+                    .align_y(Alignment::Center),
+                )
+                .on_press(Message::ImportDaqreqFile)
+                .padding([6, 12]),
+
+                Space::new().width(Length::Fill),
+
+                text("سقف دستگاه:").font(FONT_REGULAR).size(11),
                 text_input("1", &state.max_devices.to_string())
                     .on_input(Message::MaxDevicesChanged)
                     .font(FONT_MONO)
-                    .padding(8),
+                    .width(Length::Fixed(45.0))
+                    .padding(4),
             ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
+            .spacing(8)
+            .align_y(Alignment::Center),
         ]
-        .spacing(12),
-        presets_row,
-        row![
-            column![
-                text("تاریخ صدور (شمسی)").font(FONT_REGULAR).size(12),
-                text_input("1405/09/01", &state.issued_jalali)
-                    .on_input(Message::IssuedJalaliChanged)
-                    .font(FONT_MONO)
-                    .padding(8),
-            ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
-            column![
-                text("شروع اعتبار (شمسی)").font(FONT_REGULAR).size(12),
-                text_input("1405/09/01", &state.not_before_jalali)
-                    .on_input(Message::NotBeforeJalaliChanged)
-                    .font(FONT_MONO)
-                    .padding(8),
-            ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
-            column![
-                text(if is_perpetual { "تاریخ انقضا (دائمی)" } else { "تاریخ انقضا (شمسی)" })
-                    .font(FONT_REGULAR)
-                    .size(12),
-                text_input(
-                    if is_perpetual { "بدون انقضا (دائمی)" } else { "1406/09/01" },
-                    if is_perpetual { "" } else { &state.expires_jalali },
-                )
-                .on_input(Message::ExpiresJalaliChanged)
-                .font(FONT_MONO)
-                .padding(8),
-            ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
-        ]
-        .spacing(12),
-        if !is_perpetual {
-            row![
-                text("افزودن سریع اعتبار:").font(FONT_REGULAR).size(12),
-                button(text("+۱ ماه").font(FONT_REGULAR).size(11))
-                    .on_press(Message::QuickDurationMonths(1))
-                    .padding([4, 8]),
-                button(text("+۳ ماه").font(FONT_REGULAR).size(11))
-                    .on_press(Message::QuickDurationMonths(3))
-                    .padding([4, 8]),
-                button(text("+۶ ماه").font(FONT_REGULAR).size(11))
-                    .on_press(Message::QuickDurationMonths(6))
-                    .padding([4, 8]),
-                button(text("+۱ سال").font(FONT_REGULAR).size(11))
-                    .on_press(Message::QuickDurationMonths(12))
-                    .padding([4, 8]),
-                button(text("+۲ سال").font(FONT_REGULAR).size(11))
-                    .on_press(Message::QuickDurationMonths(24))
-                    .padding([4, 8]),
-            ]
-            .spacing(6)
-            .align_y(Alignment::Center)
-        } else {
-            row![]
-        },
+        .spacing(10),
+    )
+    .padding(14)
+    .style(move |th| card_style(th, is_dark));
+
+    let right_column = column![
+        card_customer,
+        card_hwid,
     ]
-    .spacing(12);
+    .spacing(12)
+    .width(Length::FillPortion(1));
 
-    let card2 = container(card2_content)
-        .padding(16)
-        .style(move |th| card_style(th, is_dark));
+    // ================= LEFT COLUMN =================
+    // Card 3: Subscription Model & Jalali Timing
+    let is_perpetual = state.license_type == "perpetual";
 
-    // ================= CARD 3: Hardware IDs =================
-    let hwid_badge = text(format!("{} دستگاه معتبر", state.hwid_valid_count))
+    let license_type_radios = row![
+        text("نوع لایسنس:").font(FONT_REGULAR).size(12),
+        radio(
+            "اشتراکی (مدت‌دار)",
+            "subscription",
+            Some(state.license_type.as_str()),
+            |val| Message::LicenseTypeSelected(val.to_string()),
+        )
         .font(FONT_REGULAR)
-        .size(12);
+        .size(14),
+        radio(
+            "دائمی (مادام‌العمر)",
+            "perpetual",
+            Some(state.license_type.as_str()),
+            |val| Message::LicenseTypeSelected(val.to_string()),
+        )
+        .font(FONT_REGULAR)
+        .size(14),
+        radio(
+            "آزمایشی (Trial)",
+            "trial",
+            Some(state.license_type.as_str()),
+            |val| Message::LicenseTypeSelected(val.to_string()),
+        )
+        .font(FONT_REGULAR)
+        .size(14),
+    ]
+    .spacing(12)
+    .align_y(Alignment::Center);
 
-    let hwid_header = row![
-        text("شناسه‌های سخت‌افزاری دستگاه‌ها (HWID)").font(FONT_BOLD).size(15),
-        Space::new().width(Length::Fill),
-        container(hwid_badge)
-            .padding([3, 8])
-            .style(move |_| status_pill_style(state.hwid_valid_count > 0, is_dark)),
-        button(text("📂 بارگذاری از فایل .daqreq").font(FONT_REGULAR).size(11))
-            .on_press(Message::ImportDaqreqFile)
-            .padding([4, 10]),
+    let duration_chips = row![
+        text("مدت:").font(FONT_REGULAR).size(11),
+        button(text("+۳۰ روز").font(FONT_REGULAR).size(11))
+            .on_press(Message::QuickDurationMonths(1))
+            .padding([3, 6]),
+        button(text("+۹۰ روز").font(FONT_REGULAR).size(11))
+            .on_press(Message::QuickDurationMonths(3))
+            .padding([3, 6]),
+        button(text("+۱ سال").font(FONT_REGULAR).size(11))
+            .on_press(Message::QuickDurationMonths(12))
+            .padding([3, 6]),
+        button(text("+۲ سال").font(FONT_REGULAR).size(11))
+            .on_press(Message::QuickDurationMonths(24))
+            .padding([3, 6]),
+        button(text("مادام‌العمر").font(FONT_REGULAR).size(11))
+            .on_press(Message::QuickDurationMonths(-1))
+            .padding([3, 6]),
+    ]
+    .spacing(4)
+    .align_y(Alignment::Center);
+
+    let jalali_dates_row = row![
+        column![
+            text("تاریخ صدور").font(FONT_REGULAR).size(11),
+            text_input("1405/09/01", &state.issued_jalali)
+                .on_input(Message::IssuedJalaliChanged)
+                .font(FONT_MONO)
+                .padding(6),
+        ]
+        .spacing(3)
+        .width(Length::FillPortion(1)),
+
+        column![
+            text("شروع اعتبار").font(FONT_REGULAR).size(11),
+            text_input("1405/09/01", &state.not_before_jalali)
+                .on_input(Message::NotBeforeJalaliChanged)
+                .font(FONT_MONO)
+                .padding(6),
+        ]
+        .spacing(3)
+        .width(Length::FillPortion(1)),
+
+        column![
+            text(if is_perpetual { "تاریخ انقضا (نامحدود)" } else { "تاریخ انقضا *" })
+                .font(FONT_REGULAR)
+                .size(11),
+            if is_perpetual {
+                text_input("دائمی (بدون انقضا)", "—")
+                    .font(FONT_REGULAR)
+                    .padding(6)
+            } else {
+                text_input("1406/09/01", &state.expires_jalali)
+                    .on_input(Message::ExpiresJalaliChanged)
+                    .font(FONT_MONO)
+                    .padding(6)
+            },
+        ]
+        .spacing(3)
+        .width(Length::FillPortion(1)),
+    ]
+    .spacing(8);
+
+    let card_timing = container(
+        column![
+            row![
+                text("📅 مدل لایسنس و تقویم شمسی").font(FONT_BOLD).size(14),
+                Space::new().width(Length::Fill),
+                text(&state.cached_jalali_summary).font(FONT_REGULAR).size(11),
+            ]
+            .align_y(Alignment::Center),
+
+            license_type_radios,
+            row![
+                duration_chips,
+                Space::new().width(Length::Fill),
+            ]
+            .align_y(Alignment::Center),
+            jalali_dates_row,
+        ]
+        .spacing(10),
+    )
+    .padding(14)
+    .style(move |th| card_style(th, is_dark));
+
+    // Card 4: PR #39 Controls & Features
+    let match_policy_row = row![
+        text("سیاست انطباق:").font(FONT_REGULAR).size(11),
+        radio("استاندارد (پیش‌فرض)", "standard", Some(state.match_policy.as_str()), |v| Message::MatchPolicyChanged(v.to_string())).font(FONT_REGULAR).size(13),
+        radio("سخت‌گیرانه", "strict", Some(state.match_policy.as_str()), |v| Message::MatchPolicyChanged(v.to_string())).font(FONT_REGULAR).size(13),
+        radio("منعطف", "relaxed", Some(state.match_policy.as_str()), |v| Message::MatchPolicyChanged(v.to_string())).font(FONT_REGULAR).size(13),
     ]
     .spacing(10)
     .align_y(Alignment::Center);
 
-    let card3_content = column![
-        hwid_header,
-        text("شناسه‌ها را از نرم‌افزار دقیق دریافت کرده و در کادر زیر وارد کنید (هر شناسه در یک سطر):")
-            .font(FONT_REGULAR)
-            .size(12),
-        text_input(
-            "fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e",
-            &state.hwid_text,
-        )
-        .on_input(Message::HwidTextChanged)
-        .font(FONT_MONO)
-        .padding(8),
-        if let Some(err) = &state.hwid_error_msg {
-            text(err).font(FONT_REGULAR).size(12)
-        } else {
-            text("")
-        },
+    let advanced_timing_row = row![
+        column![
+            text("مهلت (روز)").font(FONT_REGULAR).size(11),
+            text_input("7", &state.grace_period_days.to_string())
+                .on_input(Message::GracePeriodDaysChanged)
+                .font(FONT_MONO)
+                .padding(5),
+        ]
+        .spacing(2)
+        .width(Length::FillPortion(1)),
+
+        column![
+            text("حالت مهلت").font(FONT_REGULAR).size(11),
+            row![
+                radio("فقط‌خواندنی", "readonly", Some(state.grace_mode.as_str()), |v| Message::GraceModeChanged(v.to_string())).font(FONT_REGULAR).size(12),
+                radio("کامل", "full", Some(state.grace_mode.as_str()), |v| Message::GraceModeChanged(v.to_string())).font(FONT_REGULAR).size(12),
+            ]
+            .spacing(4)
+            .align_y(Alignment::Center),
+        ]
+        .spacing(2)
+        .width(Length::FillPortion(2)),
+
+        column![
+            text("هشدار (روز)").font(FONT_REGULAR).size(11),
+            text_input("14", &state.expiry_warning_days.to_string())
+                .on_input(Message::ExpiryWarningDaysChanged)
+                .font(FONT_MONO)
+                .padding(5),
+        ]
+        .spacing(2)
+        .width(Length::FillPortion(1)),
+
+        column![
+            text("انحراف ساعت (س)").font(FONT_REGULAR).size(11),
+            text_input("24", &state.max_clock_skew_hours.to_string())
+                .on_input(Message::MaxClockSkewHoursChanged)
+                .font(FONT_MONO)
+                .padding(5),
+        ]
+        .spacing(2)
+        .width(Length::FillPortion(1)),
     ]
     .spacing(8);
 
-    let card3 = container(card3_content)
-        .padding(16)
-        .style(move |th| card_style(th, is_dark));
+    // 10 Features
+    let feature_labels: [(&str, &str); 10] = [
+        ("dashboard", "📊 داشبورد"),
+        ("products", "📦 مدیریت کالاها"),
+        ("batches", "🚚 خرید و محموله‌ها"),
+        ("sales", "🛒 ثبت فروش"),
+        ("services", "🛠️ میز خدمت"),
+        ("upgrades", "🔧 ارتقای کالا"),
+        ("suppliers_payments", "💳 تأمین‌کنندگان"),
+        ("reports", "📈 گزارش‌های جامع"),
+        ("employees", "👤 مدیریت کاربران"),
+        ("settings", "⚙️ تنظیمات"),
+    ];
 
-    // ================= CARD 4: Feature Flags (10 Modules) =================
-    let feature_header = row![
-        text("ماژول‌ها و دسترسی‌های مجاز (۱۰ زبانه دقیق)").font(FONT_BOLD).size(15),
-        Space::new().width(Length::Fill),
-        button(text("انتخاب همه").font(FONT_REGULAR).size(11))
-            .on_press(Message::SelectAllFeatures)
-            .padding([4, 8]),
-        button(text("لغو همه").font(FONT_REGULAR).size(11))
-            .on_press(Message::DeselectAllFeatures)
-            .padding([4, 8]),
-    ]
-    .spacing(8)
-    .align_y(Alignment::Center);
-
-    let make_feat_cb = |key: &'static str, label: &'static str| {
-        let is_checked = *state.features.get(key).unwrap_or(&true);
-        row![
-            checkbox(is_checked)
-                .on_toggle(move |val| Message::FeatureToggled(key.to_string(), val)),
-            text(label).font(FONT_REGULAR).size(13),
+    let mut feat_col1 = column![].spacing(6);
+    let mut feat_col2 = column![].spacing(6);
+    for (i, (key, label)) in feature_labels.iter().enumerate() {
+        let is_checked = *state.features.get(*key).unwrap_or(&true);
+        let k = key.to_string();
+        let item = row![
+            checkbox(is_checked).on_toggle(move |c| Message::FeatureToggled(k.clone(), c)),
+            text(*label).font(FONT_REGULAR).size(12),
         ]
         .spacing(6)
-        .align_y(Alignment::Center)
-    };
+        .align_y(Alignment::Center);
 
-    let feat_col1 = column![
-        make_feat_cb("dashboard", "📊 داشبورد و شاخص‌ها"),
-        make_feat_cb("products", "📦 مدیریت کالاها و انبار"),
-        make_feat_cb("batches", "🚚 ثبت خرید و محموله‌ها"),
-        make_feat_cb("sales", "🛒 ثبت فروش و فاکتور"),
-        make_feat_cb("services", "🛠️ میز خدمت و خدمات پس از فروش"),
+        if i < 5 {
+            feat_col1 = feat_col1.push(item);
+        } else {
+            feat_col2 = feat_col2.push(item);
+        }
+    }
+
+    let card_features = container(
+        column![
+            row![
+                text("⚙️ دسترسی‌های PR #39 و محدوده نسخه").font(FONT_BOLD).size(14),
+                Space::new().width(Length::Fill),
+                button(text("انتخاب همه ✓").font(FONT_REGULAR).size(10))
+                    .on_press(Message::SelectAllFeatures)
+                    .padding([2, 6]),
+                button(text("لغو همه ✕").font(FONT_REGULAR).size(10))
+                    .on_press(Message::DeselectAllFeatures)
+                    .padding([2, 6]),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center),
+
+            match_policy_row,
+            advanced_timing_row,
+
+            row![
+                feat_col1.width(Length::FillPortion(1)),
+                feat_col2.width(Length::FillPortion(1)),
+            ]
+            .spacing(12),
+
+            row![
+                column![
+                    text("حداقل نسخه مجاز برنامه").font(FONT_REGULAR).size(11),
+                    text_input("4.9.0", &state.min_app_version)
+                        .on_input(Message::MinVersionChanged)
+                        .font(FONT_MONO)
+                        .padding(5),
+                ]
+                .spacing(2)
+                .width(Length::FillPortion(1)),
+
+                column![
+                    text("حداکثر نسخه مجاز (اختیاری)").font(FONT_REGULAR).size(11),
+                    text_input("نامحدود", &state.max_app_version)
+                        .on_input(Message::MaxVersionChanged)
+                        .font(FONT_MONO)
+                        .padding(5),
+                ]
+                .spacing(2)
+                .width(Length::FillPortion(1)),
+            ]
+            .spacing(10),
+        ]
+        .spacing(10),
+    )
+    .padding(14)
+    .style(move |th| card_style(th, is_dark));
+
+    let left_column = column![
+        card_timing,
+        card_features,
     ]
-    .spacing(8)
+    .spacing(12)
     .width(Length::FillPortion(1));
 
-    let feat_col2 = column![
-        make_feat_cb("upgrades", "🔧 ارتقای کالا و مونتاژ"),
-        make_feat_cb("suppliers_payments", "💳 تأمین‌کنندگان و تسویه‌حساب"),
-        make_feat_cb("reports", "📈 گزارش‌های جامع مالی"),
-        make_feat_cb("employees", "👤 مدیریت کاربران و صندوقداران"),
-        make_feat_cb("settings", "⚙️ تنظیمات و پشتیبان‌گیری"),
+    // 2-Column Responsive Workspace
+    let workspace = row![
+        right_column,
+        left_column,
     ]
-    .spacing(8)
-    .width(Length::FillPortion(1));
+    .spacing(14)
+    .width(Length::Fill);
 
-    let card4_content = column![
-        feature_header,
-        row![feat_col1, feat_col2].spacing(16),
-    ]
-    .spacing(12);
-
-    let card4 = container(card4_content)
-        .padding(16)
-        .style(move |th| card_style(th, is_dark));
-
-    // ================= CARD 5: Version Bounds =================
-    let card5_content = column![
-        text("محدودیت نسخه برنامه (اختیاری)").font(FONT_BOLD).size(15),
-        row![
-            column![
-                text("حداقل نسخه نرم‌افزار").font(FONT_REGULAR).size(12),
-                text_input("4.9.0", &state.min_app_version)
-                    .on_input(Message::MinVersionChanged)
-                    .font(FONT_MONO)
-                    .padding(8),
-            ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
-            column![
-                text("حداکثر نسخه مجاز (اختیاری)").font(FONT_REGULAR).size(12),
-                text_input("خالی برای نامحدود", &state.max_app_version)
-                    .on_input(Message::MaxVersionChanged)
-                    .font(FONT_MONO)
-                    .padding(8),
-            ]
-            .spacing(4)
-            .width(Length::FillPortion(1)),
+    let scrollable_content = scrollable(
+        column![
+            workspace,
+            Space::new().height(Length::Fixed(10.0)),
         ]
-        .spacing(12),
-    ]
-    .spacing(10);
+        .spacing(10)
+        .padding(16),
+    )
+    .height(Length::Fill);
 
-    let card5 = container(card5_content)
-        .padding(16)
-        .style(move |th| card_style(th, is_dark));
-
-    // Generate Button & Error
-    let btn_generate = button(
+    // Sticky Bottom Action Bar
+    let validation_pill = container(
         row![
-            text("🛡️").size(16),
-            text("تولید و امضای لایسنس دیجیتال (.daqlic)")
-                .font(FONT_BOLD)
-                .size(14),
+            text(if state.cached_validation_is_ok { "✓" } else { "⚠️" }).size(13),
+            text(&state.cached_validation_status_text).font(FONT_REGULAR).size(11),
         ]
-        .spacing(8)
+        .spacing(6)
         .align_y(Alignment::Center),
     )
-    .on_press(Message::GenerateLicenseClicked)
-    .padding([12, 24]);
+    .padding([6, 12])
+    .style(move |_th| {
+        if state.cached_validation_is_ok {
+            status_pill_style(true, is_dark)
+        } else {
+            warning_pill_style(is_dark)
+        }
+    });
 
-    let mut left_form = column![
-        card1,
-        card2,
-        card3,
-        card4,
-        card5,
-        btn_generate,
-    ]
-    .spacing(16)
-    .width(Length::FillPortion(3));
+    let action_bar = container(
+        row![
+            validation_pill,
+
+            Space::new().width(Length::Fill),
+
+            button(
+                text(if state.show_json_preview { "بستن پیش‌نمایش JSON ✕" } else { "پیش‌نمایش JSON 👁️" })
+                    .font(FONT_REGULAR)
+                    .size(12),
+            )
+            .on_press(Message::ToggleJsonPreview)
+            .padding([8, 14]),
+
+            button(
+                row![
+                    text("📋").size(14),
+                    text("کپی توکن متنی (Base64)").font(FONT_REGULAR).size(12),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center),
+            )
+            .on_press(Message::CopyCompactToken)
+            .padding([8, 14]),
+
+            button(
+                row![
+                    text("💾").size(15),
+                    text("تولید و ذخیره لایسنس (.daqlic)").font(FONT_BOLD).size(13),
+                ]
+                .spacing(8)
+                .align_y(Alignment::Center),
+            )
+            .on_press(Message::GenerateLicenseClicked)
+            .padding([9, 20]),
+        ]
+        .spacing(10)
+        .align_y(Alignment::Center),
+    )
+    .padding([10, 16])
+    .style(move |th| subcard_style(th, is_dark));
+
+    // Optional Collapsible JSON preview
+    let mut main_view = column![scrollable_content];
+
+    if state.show_json_preview && !state.generated_json.is_empty() {
+        let preview_box = container(
+            column![
+                row![
+                    text("خروجی کانویکال امضا شده (.daqlic):").font(FONT_BOLD).size(12),
+                    Space::new().width(Length::Fill),
+                    button(text("کپی JSON 📋").font(FONT_REGULAR).size(11))
+                        .on_press(Message::CopyGeneratedLicense)
+                        .padding([3, 8]),
+                    button(text("ذخیره در فایل 💾").font(FONT_REGULAR).size(11))
+                        .on_press(Message::SaveGeneratedLicense)
+                        .padding([3, 8]),
+                    text(format!("SHA-256 Digest: {}", state.generated_sha256)).font(FONT_MONO).size(11),
+                ]
+                .spacing(8)
+                .align_y(Alignment::Center),
+                container(
+                    scrollable(text(&state.generated_json).font(FONT_MONO).size(11))
+                        .height(Length::Fixed(180.0)),
+                )
+                .padding(10)
+                .style(move |th| code_box_style(th, is_dark)),
+            ]
+            .spacing(6),
+        )
+        .padding(12)
+        .style(move |th| card_style(th, is_dark));
+
+        main_view = main_view.push(preview_box);
+    }
 
     if let Some(err) = &state.generation_error {
         let err_box = container(
             row![
-                text("⚠️").size(16),
-                text(err).font(FONT_REGULAR).size(13),
+                text("❌").size(16),
+                text(err).font(FONT_REGULAR).size(12),
             ]
             .spacing(8)
             .align_y(Alignment::Center),
         )
-        .padding(12)
-        .style(move |_| status_pill_style(false, is_dark));
+        .padding([8, 14])
+        .style(move |_th| status_pill_style(false, is_dark));
 
-        left_form = left_form.push(err_box);
+        main_view = main_view.push(err_box);
     }
 
-    // ================= RIGHT COLUMN: Output Preview =================
-    let has_output = !state.generated_json.is_empty();
-
-    let digest_box = container(
-        column![
-            text("هش SHA-256 محتوای امضا شده:").font(FONT_REGULAR).size(12),
-            text(if has_output { &state.generated_sha256 } else { "—" })
-                .font(FONT_MONO)
-                .size(11),
-        ]
-        .spacing(4),
-    )
-    .padding(10)
-    .style(move |_| code_box_style(is_dark));
-
-    let json_preview = container(
-        scrollable(
-            text(if has_output {
-                &state.generated_json
-            } else {
-                "محتوای فایل .daqlic پس از صدور در این بخش نمایش داده می‌شود..."
-            })
-            .font(FONT_MONO)
-            .size(11),
-        )
-        .height(Length::Fill),
-    )
-    .padding(12)
-    .height(Length::Fill)
-    .style(move |_| code_box_style(is_dark));
-
-    let mut copy_btn = button(text("📋 کپی لایسنس").font(FONT_REGULAR).size(13))
-        .padding([8, 16])
-        .width(Length::FillPortion(1));
-    if has_output {
-        copy_btn = copy_btn.on_press(Message::CopyGeneratedLicense);
-    }
-
-    let mut save_btn = button(text("💾 ذخیره فایل .daqlic").font(FONT_BOLD).size(13))
-        .padding([8, 16])
-        .width(Length::FillPortion(1));
-    if has_output {
-        save_btn = save_btn.on_press(Message::SaveGeneratedLicense);
-    }
-
-    let output_actions = row![copy_btn, save_btn].spacing(10);
-
-    let right_card = container(
-        column![
-            row![
-                text("خروجی لایسنس امضا شده").font(FONT_BOLD).size(15),
-                Space::new().width(Length::Fill),
-                container(
-                    text(if has_output { "آماده تحویل" } else { "در انتظار تولید" })
-                        .font(FONT_REGULAR)
-                        .size(11),
-                )
-                .padding([2, 8])
-                .style(move |_| status_pill_style(has_output, is_dark)),
-            ]
-            .align_y(Alignment::Center),
-            digest_box,
-            json_preview,
-            output_actions,
-        ]
-        .spacing(12)
-        .height(Length::Fill),
-    )
-    .padding(16)
-    .height(Length::Fill)
-    .style(move |th| card_style(th, is_dark));
-
-    let right_column = column![right_card]
-        .width(Length::FillPortion(2))
-        .height(Length::Fill);
-
-    let content_row = row![
-        scrollable(left_form).height(Length::Fill),
-        right_column,
-    ]
-    .spacing(20)
-    .height(Length::Fill)
-    .padding(20);
-
-    content_row.into()
+    main_view.push(action_bar).into()
 }

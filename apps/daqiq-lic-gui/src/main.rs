@@ -9,7 +9,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-use iced::widget::{column, container};
+use iced::widget::{column, container, row};
 use iced::{window, Element, Font, Length, Size, Task, Theme};
 use serde_json::json;
 
@@ -55,6 +55,13 @@ fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
         min_app_version: Some("4.9.0".to_string()),
         not_before: "2026-11-22T00:00:00Z".to_string(),
         product_id: "daqiq.desktop".to_string(),
+        match_policy: None,
+        grace_period_days: None,
+        grace_mode: None,
+        expiry_warning_days: None,
+        max_clock_skew_hours: None,
+        quotas: None,
+        metadata: None,
     };
 
     let canon_bytes = canonicalize_payload(&payload).map_err(|e| e.to_string())?;
@@ -137,7 +144,7 @@ fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
     state.update(Message::SwitchTab(ActiveTab::Ledger));
     state.update(Message::ToggleTheme);
     state.update(Message::SwitchTab(ActiveTab::Inspector));
-    state.inspect_json = state.generated_json.clone();
+    state.inspect_text = state.generated_json.clone();
     state.update(Message::VerifyInspectClicked);
     if let Some((valid, _, _)) = &state.inspect_status {
         if !valid {
@@ -152,7 +159,7 @@ fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
     let report = json!({
         "status": "ok",
         "app_name": "Daqiq License Generator Studio",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "target_product": DEFAULT_PRODUCT_ID,
         "default_key_id": DEFAULT_KEY_ID,
         "default_public_key": DEFAULT_PROD_PUBLIC_KEY,
@@ -191,11 +198,21 @@ impl AppState {
             ActiveTab::Vault => views::vault::view_vault(self),
         };
 
-        column![
+        let main_area = column![
             views::header::view_header(self),
             container(content)
                 .height(Length::Fill)
                 .width(Length::Fill),
+        ]
+        .height(Length::Fill)
+        .width(Length::Fill);
+
+        // Right-Anchored RTL Sidebar (~220px) + Main Area
+        row![
+            container(main_area)
+                .height(Length::Fill)
+                .width(Length::Fill),
+            views::sidebar::view_sidebar(self),
         ]
         .height(Length::Fill)
         .width(Length::Fill)
@@ -234,7 +251,7 @@ fn main() -> iced::Result {
 
     // Check for --version flag
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("1.2.0");
+        println!("1.3.0");
         std::process::exit(0);
     }
 
@@ -246,7 +263,7 @@ fn main() -> iced::Result {
     };
 
     iced::application(AppState::new, AppState::update_task, AppState::view_app)
-        .title("استودیو صدور لایسنس نرم‌افزار دقیق (نسخه ۱.۲.۰ - Pure Native Rust)")
+        .title("استودیو صدور لایسنس نرم‌افزار دقیق (نسخه ۱.۳.۰ - Pure Native Rust)")
         .theme(AppState::theme_app)
         .window(window_settings)
         .font(include_bytes!("../assets/fonts/Vazirmatn-Regular.ttf").as_slice())

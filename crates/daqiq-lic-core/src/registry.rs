@@ -327,47 +327,49 @@ impl RegistryDb {
 }
 
 fn format_csv_records(records: &[RegistryRecord]) -> Result<String, LicError> {
-    let mut wtr = csv::Writer::from_writer(vec![]);
-    wtr.write_record([
-        "ID",
-        "License ID",
-        "Key ID",
-        "Customer Name",
-        "Organization",
-        "Contact",
-        "Type",
-        "Issued At",
-        "Not Before",
-        "Expires At",
-        "Max Devices",
-        "Fingerprints",
-        "Created At",
-    ])
-    .map_err(|e| LicError::Serialization(e.to_string()))?;
-
-    for r in records {
-        wtr.write_record(&[
-            r.id.to_string(),
-            r.license_id.clone(),
-            r.key_id.clone(),
-            r.customer_name.clone(),
-            r.customer_org.clone().unwrap_or_default(),
-            r.customer_contact.clone().unwrap_or_default(),
-            r.license_type.clone(),
-            r.issued_at.clone(),
-            r.not_before.clone(),
-            r.expires_at.clone().unwrap_or_default(),
-            r.max_devices.to_string(),
-            r.device_fingerprints.replace('\n', "; "),
-            r.created_at.clone(),
+    // UTF-8 BOM (\xEF\xBB\xBF) ensures Microsoft Excel correctly recognizes Persian UTF-8 text
+    let mut buffer = vec![0xEF, 0xBB, 0xBF];
+    {
+        let mut wtr = csv::Writer::from_writer(&mut buffer);
+        wtr.write_record([
+            "ID",
+            "License ID",
+            "Key ID",
+            "Customer Name",
+            "Organization",
+            "Contact",
+            "Type",
+            "Issued At",
+            "Not Before",
+            "Expires At",
+            "Max Devices",
+            "Fingerprints",
+            "Created At",
         ])
         .map_err(|e| LicError::Serialization(e.to_string()))?;
+
+        for r in records {
+            wtr.write_record(&[
+                r.id.to_string(),
+                r.license_id.clone(),
+                r.key_id.clone(),
+                r.customer_name.clone(),
+                r.customer_org.clone().unwrap_or_default(),
+                r.customer_contact.clone().unwrap_or_default(),
+                r.license_type.clone(),
+                r.issued_at.clone(),
+                r.not_before.clone(),
+                r.expires_at.clone().unwrap_or_default(),
+                r.max_devices.to_string(),
+                r.device_fingerprints.replace('\n', "; "),
+                r.created_at.clone(),
+            ])
+            .map_err(|e| LicError::Serialization(e.to_string()))?;
+        }
+        wtr.flush().map_err(|e| LicError::Serialization(e.to_string()))?;
     }
 
-    let bytes = wtr
-        .into_inner()
-        .map_err(|e| LicError::Serialization(e.to_string()))?;
-    String::from_utf8(bytes).map_err(|e| LicError::Serialization(e.to_string()))
+    String::from_utf8(buffer).map_err(|e| LicError::Serialization(e.to_string()))
 }
 
 #[cfg(test)]
@@ -398,6 +400,13 @@ mod tests {
             min_app_version: Some("4.9.0".to_string()),
             not_before: "2026-11-22T00:00:00Z".to_string(),
             product_id: "daqiq.desktop".to_string(),
+            match_policy: None,
+            grace_period_days: None,
+            grace_mode: None,
+            expiry_warning_days: None,
+            max_clock_skew_hours: None,
+            quotas: None,
+            metadata: None,
         };
 
         let env = LicenseEnvelope {
