@@ -1,6 +1,6 @@
 [package]
 name = "daqiq-license-generator"
-version = "1.4.0"
+version = "1.4.1"
 edition = "2021"
 authors = ["Daqiq Licensing Architecture Team"]
 description = "Pure native Win32 Rust offline license studio for Daqiq Desktop v4.9.1"
@@ -22,6 +22,7 @@ windows-sys = { version = "0.59", features = [
     "Win32_UI_Shell",
     "Win32_System_LibraryLoader",
     "Win32_System_SystemServices",
+    "Win32_System_Com",
 ] }
 rfd = "0.15"
 arboard = "3.4"

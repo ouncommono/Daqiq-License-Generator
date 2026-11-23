@@ -38,7 +38,7 @@ impl SidebarView {
         );
         let lbl_subtitle = create_label(
             parent,
-            "نسخه ۱.۴.۰ - Win32 Native",
+            "نسخه ۱.۴.۱ - Win32 Native",
             0, 44, 210, 18,
             1011,
             fonts.small,

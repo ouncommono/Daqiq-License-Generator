@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::startup_log::get_app_data_dir;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
     pub theme_mode: String, // "dark" or "light"
     pub default_output_dir: Option<String>,
@@ -19,29 +22,33 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
-    pub fn config_path() -> Option<PathBuf> {
-        let mut dir = dirs::data_local_dir()?;
-        dir.push("DaqiqLicenseGenerator");
-        let _ = std::fs::create_dir_all(&dir);
-        Some(dir.join("config.json"))
+    pub fn config_path() -> PathBuf {
+        let dir = get_app_data_dir();
+        dir.join("config.json")
     }
 
     pub fn load() -> Self {
-        if let Some(p) = Self::config_path() {
+        let p = Self::config_path();
+        if p.exists() {
             if let Ok(content) = std::fs::read_to_string(&p) {
-                if let Ok(cfg) = serde_json::from_str::<Self>(&content) {
-                    return cfg;
+                match serde_json::from_str::<Self>(&content) {
+                    Ok(cfg) => return cfg,
+                    Err(_) => {
+                        let bak = p.with_extension("json.corrupt.bak");
+                        let _ = std::fs::rename(&p, &bak);
+                    }
                 }
             }
         }
-        Self::default()
+        let def = Self::default();
+        def.save();
+        def
     }
 
     pub fn save(&self) {
-        if let Some(p) = Self::config_path() {
-            if let Ok(content) = serde_json::to_string_pretty(self) {
-                let _ = std::fs::write(p, content);
-            }
+        let p = Self::config_path();
+        if let Ok(content) = serde_json::to_string_pretty(self) {
+            let _ = std::fs::write(p, content);
         }
     }
 }

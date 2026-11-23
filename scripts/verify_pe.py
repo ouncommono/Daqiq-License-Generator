@@ -33,9 +33,6 @@ ALLOWED_SYSTEM_DLL_PREFIXES = (
     "bcryptprimitives",
     "ntdll",
     "msvcrt",
-    "vcruntime140",
-    "vcruntime140_1",
-    "msvcp140",
     "dnsapi",
     "iphlpapi",
     "sechost",
@@ -65,6 +62,11 @@ BANNED_DLL_SUBSTRINGS = (
     "cef",
     "electron",
     "node",
+    "vcruntime140",
+    "vcruntime140_1",
+    "msvcp140",
+    "msvcp140_1",
+    "msvcp140_2",
 )
 
 

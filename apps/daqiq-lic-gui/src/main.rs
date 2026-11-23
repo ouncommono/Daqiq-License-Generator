@@ -3,6 +3,7 @@
 mod config;
 mod panels;
 mod rtl;
+mod startup_log;
 mod state;
 mod theme;
 mod win32_util;
@@ -13,25 +14,30 @@ use std::fs;
 use std::path::PathBuf;
 
 use serde_json::json;
-use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
+use windows_sys::Win32::Foundation::{
+    GetLastError, ERROR_CLASS_ALREADY_EXISTS, HWND, LPARAM, LRESULT, RECT, WPARAM,
+};
 use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
 use windows_sys::Win32::Graphics::Gdi::{
-    RedrawWindow, SetBkColor, SetBkMode, SetTextColor, HDC, RDW_ALLCHILDREN, RDW_ERASE,
-    RDW_INVALIDATE, TRANSPARENT,
+    RedrawWindow, SetBkColor, SetBkMode, SetTextColor, UpdateWindow, HDC, RDW_ALLCHILDREN,
+    RDW_ERASE, RDW_INVALIDATE, TRANSPARENT,
 };
+use windows_sys::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::Controls::{
-    InitCommonControlsEx, ICC_LISTVIEW_CLASSES, ICC_STANDARD_CLASSES, ICC_WIN95_CLASSES,
-    INITCOMMONCONTROLSEX,
+    InitCommonControlsEx, ICC_BAR_CLASSES, ICC_LISTVIEW_CLASSES, ICC_STANDARD_CLASSES,
+    ICC_TAB_CLASSES, ICC_WIN95_CLASSES, INITCOMMONCONTROLSEX,
 };
 use windows_sys::Win32::UI::HiDpi::{
     SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetMessageW,
-    MessageBoxW, PostQuitMessage, RegisterClassExW, ShowWindow, TranslateMessage, CS_HREDRAW,
-    CS_VREDRAW, MB_ICONERROR, MB_ICONINFORMATION, MB_OK, MSG, SW_SHOW, WM_COMMAND, WM_CREATE,
-    WM_CTLCOLORBTN, WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_DESTROY, WM_SIZE, WNDCLASSEXW,
-    WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
+    MessageBoxW, PostQuitMessage, RegisterClassExW, ShowWindow, SystemParametersInfoW,
+    TranslateMessage, CS_HREDRAW, CS_VREDRAW, MB_ICONERROR, MB_ICONINFORMATION,
+    MB_OK, MSG, SPI_GETWORKAREA, SW_SHOW, WM_COMMAND, WM_CREATE, WM_CTLCOLORBTN, WM_CTLCOLOREDIT,
+    WM_CTLCOLORSTATIC, WM_DESTROY, WM_SIZE, WNDCLASSEXW, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
+    WS_EX_APPWINDOW, WS_EX_CONTROLPARENT, WS_OVERLAPPEDWINDOW, WS_POPUP,
 };
 
 use daqiq_lic_core::{
@@ -226,7 +232,7 @@ fn run_headless_self_test(report_path: Option<PathBuf>) -> Result<(), String> {
     let report = json!({
         "status": "ok",
         "app_name": "Daqiq License Generator Studio",
-        "version": "1.4.0",
+        "version": "1.4.1",
         "target_product": DEFAULT_PRODUCT_ID,
         "default_key_id": DEFAULT_KEY_ID,
         "default_public_key": DEFAULT_PROD_PUBLIC_KEY,
@@ -293,6 +299,7 @@ fn run_headless_ui_self_test(report_path: Option<PathBuf>) -> Result<(), String>
         GLOBAL_APP = Some(&mut app as *mut _);
     }
 
+    let hinstance = unsafe { GetModuleHandleW(std::ptr::null()) };
     let title = to_wstring("Daqiq UI Test Window");
     let hwnd = unsafe {
         CreateWindowExW(
@@ -306,7 +313,7 @@ fn run_headless_ui_self_test(report_path: Option<PathBuf>) -> Result<(), String>
             850,
             0 as HWND,
             0 as _,
-            0 as _,
+            hinstance,
             std::ptr::null_mut(),
         )
     };
@@ -421,7 +428,7 @@ fn run_headless_ui_self_test(report_path: Option<PathBuf>) -> Result<(), String>
     let report = json!({
         "status": "ok",
         "app_name": "Daqiq License Generator Studio",
-        "version": "1.4.0",
+        "version": "1.4.1",
         "ui_subsystem": "pure_win32_native",
         "tests": [
             {"tab": "generator", "actions": ["preset_apply", "text_edit", "license_generation", "token_encode"], "passed": true},
@@ -578,12 +585,20 @@ unsafe extern "system" fn wnd_proc(
 
                     // Update titlebar dark mode
                     let dark_flag: i32 = if next_mode == ThemeMode::Dark { 1 } else { 0 };
-                    DwmSetWindowAttribute(
+                    let hr = DwmSetWindowAttribute(
                         hwnd,
-                        20, // DWMWA_USE_IMMERSIVE_DARK_MODE
+                        20, // DWMWA_USE_IMMERSIVE_DARK_MODE (Win10 2004+)
                         &dark_flag as *const _ as *const c_void,
                         4,
                     );
+                    if hr != 0 {
+                        DwmSetWindowAttribute(
+                            hwnd,
+                            19, // Fallback for Win10 1809/1903
+                            &dark_flag as *const _ as *const c_void,
+                            4,
+                        );
+                    }
 
                     RedrawWindow(hwnd, std::ptr::null(), 0 as _, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
                 }
@@ -911,23 +926,42 @@ extern "system" {
         lp_number_of_chars_written: *mut u32,
         lp_reserved: *mut c_void,
     ) -> i32;
+    fn WriteFile(
+        h_file: windows_sys::Win32::Foundation::HANDLE,
+        lp_buffer: *const u8,
+        n_number_of_bytes_to_write: u32,
+        lp_number_of_bytes_written: *mut u32,
+        lp_overlapped: *mut c_void,
+    ) -> i32;
 }
 const ATTACH_PARENT_PROCESS: u32 = 0xFFFFFFFF;
 const STD_OUTPUT_HANDLE: u32 = 0xFFFFFFF5; // -11
 
 pub fn print_console(msg: &str) {
-    let w = to_wstring(&format!("{msg}\r\n"));
+    let s = format!("{msg}\r\n");
+    let w = to_wstring(&s);
     unsafe {
         let handle = GetStdHandle(STD_OUTPUT_HANDLE);
         if handle != 0 as _ && handle != (-1isize) as _ {
             let mut written = 0u32;
-            WriteConsoleW(
+            let res = WriteConsoleW(
                 handle,
                 w.as_ptr(),
                 (w.len().saturating_sub(1)) as u32,
                 &mut written,
                 std::ptr::null_mut(),
             );
+            if res == 0 {
+                // If stdout is a pipe or redirected stream, WriteConsoleW fails. WriteFile succeeds!
+                let bytes = s.as_bytes();
+                WriteFile(
+                    handle,
+                    bytes.as_ptr(),
+                    bytes.len() as u32,
+                    &mut written,
+                    std::ptr::null_mut(),
+                );
+            }
         }
     }
 }
@@ -939,27 +973,40 @@ fn main() {
     unsafe {
         AttachConsole(ATTACH_PARENT_PROCESS);
     }
-    // Setup global panic hook to log any unexpected crash
+
+    // Step 0: Initialize startup breadcrumb logger
+    let _ = crate::startup_log::init_log();
+
+    // Step 1: Global panic hook with technical details, GetLastError, crash.log and native MessageBoxW
     std::panic::set_hook(Box::new(|info| {
-        let msg = format!("CRITICAL PANIC in Daqiq License Studio:\n{info}");
+        let err_code = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+        let msg = format!("CRITICAL PANIC in Daqiq License Studio:\n{info}\nWindows LastError: {err_code}");
         eprintln!("{msg}");
-        if let Some(mut path) = dirs::data_local_dir() {
-            path.push("DaqiqLicenseGenerator");
-            let _ = fs::create_dir_all(&path);
-            let _ = fs::write(path.join("crash.log"), &msg);
-        }
+        crate::startup_log::log_fatal("PANIC", &format!("{info}"));
+        let data_dir = crate::startup_log::get_app_data_dir();
+        let _ = fs::write(data_dir.join("crash.log"), &msg);
         let t_w = to_wstring("خطای بحرانی در برنامه");
-        let m_w = to_wstring(&format!("متأسفانه برنامه با خطای غیرمنتظره روبرو شد:\n{info}\nگزارش در crash.log ثبت گردید."));
+        let m_w = to_wstring(&format!(
+            "متأسفانه برنامه با خطای غیرمنتظره روبرو شد:\n\n\
+            {info}\n\n\
+            کد خطای ویندوز (GetLastError): {err_code}\n\
+            گزارش در crash.log و startup.log ثبت گردید."
+        ));
         unsafe {
             MessageBoxW(0 as _, m_w.as_ptr(), t_w.as_ptr(), MB_OK | MB_ICONERROR);
         }
     }));
+    crate::startup_log::log_stage("PANIC_HOOK_OK", "Global panic hook registered successfully");
+
+    // Step 2: Verify AppData directory
+    let data_dir = crate::startup_log::get_app_data_dir();
+    crate::startup_log::log_stage("DATA_DIR_OK", &format!("AppData directory verified at {}", data_dir.display()));
 
     let args: Vec<String> = env::args().collect();
 
     // Check for --version flag
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        print_console("1.4.0");
+        print_console("1.4.1");
         std::process::exit(0);
     }
 
@@ -999,17 +1046,52 @@ fn main() {
         }
     }
 
-    // Standard Interactive WinMain
+    // Step 3: Load application configuration
+    let config = AppConfig::load();
+    crate::startup_log::log_stage(
+        "CONFIG_OK",
+        &format!("Configuration loaded successfully (theme_mode: {})", config.theme_mode),
+    );
+
+    // Step 4: Initialize SQLite database and application state
+    let state = AppState::new();
+    crate::startup_log::log_stage("DB_OK", "Registry SQLite database and state initialized");
+
+    // Step 5: Initialize COM library
+    unsafe {
+        let hr = CoInitializeEx(std::ptr::null_mut(), COINIT_APARTMENTTHREADED as u32);
+        // S_OK (0) or S_FALSE (1) are successful. RPC_E_CHANGED_MODE (-2147417850 = 0x80010106) means already initialized.
+        if hr < 0 && hr != -2147417850 {
+            crate::startup_log::show_fatal_dialog(
+                "COM_OK",
+                &format!("CoInitializeEx failed with HRESULT: 0x{hr:08X}"),
+            );
+            return;
+        }
+    }
+    crate::startup_log::log_stage("COM_OK", "CoInitializeEx initialized as APARTMENTTHREADED");
+
+    // Step 6: Initialize Common Controls & DPI Awareness
     unsafe {
         let icex = INITCOMMONCONTROLSEX {
             dwSize: std::mem::size_of::<INITCOMMONCONTROLSEX>() as u32,
-            dwICC: ICC_WIN95_CLASSES | ICC_STANDARD_CLASSES | ICC_LISTVIEW_CLASSES,
+            dwICC: ICC_WIN95_CLASSES | ICC_LISTVIEW_CLASSES | ICC_TAB_CLASSES | ICC_BAR_CLASSES,
         };
-        InitCommonControlsEx(&icex);
+        let _ = InitCommonControlsEx(&icex);
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
+    crate::startup_log::log_stage(
+        "COMMCTRL_OK",
+        "Common Controls v6 and PerMonitorV2 DPI awareness initialized",
+    );
 
-    let config = AppConfig::load();
+    // Step 7: Load embedded fonts
+    let fonts = Fonts::new();
+    crate::startup_log::log_stage(
+        "FONT_OK",
+        "Embedded Vazirmatn & JetBrains Mono fonts loaded into process memory",
+    );
+
     let initial_theme = if config.theme_mode == "light" {
         ThemeMode::Light
     } else {
@@ -1017,8 +1099,8 @@ fn main() {
     };
 
     let mut app = AppWindow {
-        state: AppState::new(),
-        fonts: Fonts::new(),
+        state,
+        fonts,
         theme_gdi: ThemeGdiResources::new(initial_theme),
         sidebar: None,
         generator: None,
@@ -1032,58 +1114,173 @@ fn main() {
         GLOBAL_APP = Some(&mut app as *mut _);
     }
 
+    // Step 8: Register main window class with OS
+    let hinstance = unsafe { GetModuleHandleW(std::ptr::null()) };
     let class_name = to_wstring("DaqiqLicenseStudioWindow");
     let mut wnd_class: WNDCLASSEXW = unsafe { std::mem::zeroed() };
     wnd_class.cbSize = std::mem::size_of::<WNDCLASSEXW>() as u32;
     wnd_class.style = CS_HREDRAW | CS_VREDRAW;
     wnd_class.lpfnWndProc = Some(wnd_proc);
+    wnd_class.hInstance = hinstance;
     wnd_class.lpszClassName = class_name.as_ptr();
     wnd_class.hbrBackground = app.theme_gdi.brush_canvas;
 
-    unsafe {
-        RegisterClassExW(&wnd_class);
+    let reg_res = unsafe { RegisterClassExW(&wnd_class) };
+    if reg_res == 0 {
+        let err = unsafe { GetLastError() };
+        if err != ERROR_CLASS_ALREADY_EXISTS {
+            crate::startup_log::show_fatal_dialog(
+                "CLASS_REG_OK",
+                &format!("RegisterClassExW failed (code: {err})"),
+            );
+            return;
+        }
     }
+    crate::startup_log::log_stage("CLASS_REG_OK", "Main window class registered with OS");
 
-    let title = to_wstring("استودیو صدور لایسنس نرم‌افزار دقیق (نسخه ۱.۴.۰ - Pure Win32 Native)");
+    // Step 9: Determine centered window bounds via SPI_GETWORKAREA
+    let mut work_area: RECT = unsafe { std::mem::zeroed() };
+    let spi_ok = unsafe {
+        SystemParametersInfoW(
+            SPI_GETWORKAREA,
+            0,
+            &mut work_area as *mut _ as *mut c_void,
+            0,
+        )
+    };
+    let work_w = work_area.right - work_area.left;
+    let work_h = work_area.bottom - work_area.top;
+
+    let mut win_w = 1280;
+    let mut win_h = 850;
+    if spi_ok != 0 && work_w > 400 && work_h > 300 {
+        if win_w > work_w {
+            win_w = work_w;
+        }
+        if win_h > work_h {
+            win_h = work_h;
+        }
+    }
+    let x = work_area.left + (work_w.saturating_sub(win_w)) / 2;
+    let y = work_area.top + (work_h.saturating_sub(win_h)) / 2;
+
+    crate::startup_log::log_stage(
+        "GEOMETRY",
+        &format!("spi_ok: {spi_ok}, work_area: [L:{}, T:{}, R:{}, B:{}], win: {win_w}x{win_h} at ({x}, {y})", work_area.left, work_area.top, work_area.right, work_area.bottom),
+    );
+
+    // Step 10: Create main application window (DW_EX_APPWINDOW, without WS_VISIBLE initially)
+    let title = to_wstring("استودیو صدور لایسنس نرم‌افزار دقیق (نسخه ۱.۴.۱ - Pure Win32 Native)");
     let hwnd = unsafe {
         CreateWindowExW(
-            WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+            WS_EX_APPWINDOW | WS_EX_CONTROLPARENT,
             class_name.as_ptr(),
             title.as_ptr(),
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-            100,
-            100,
-            1280,
-            850,
+            WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+            x,
+            y,
+            win_w,
+            win_h,
             0 as HWND,
             0 as _,
-            0 as _,
+            hinstance,
             std::ptr::null_mut(),
         )
     };
 
     if hwnd == 0 as HWND {
-        panic!("Failed to create main application window");
+        crate::startup_log::show_fatal_dialog(
+            "MAIN_HWND_OK",
+            "CreateWindowExW returned NULL handle for main application window",
+        );
+        return;
     }
+    crate::startup_log::log_stage(
+        "MAIN_HWND_OK",
+        &format!("Main HWND created successfully: 0x{:X}", hwnd as usize),
+    );
 
-    // Set dark titlebar on Windows 10/11
+    // Step 11: Verify child panels creation
+    if app.sidebar.is_none()
+        || app.generator.is_none()
+        || app.ledger.is_none()
+        || app.inspector.is_none()
+        || app.vault.is_none()
+    {
+        crate::startup_log::show_fatal_dialog(
+            "PANELS_CREATED_OK",
+            "One or more child control views failed to instantiate during WM_CREATE",
+        );
+        return;
+    }
+    crate::startup_log::log_stage(
+        "PANELS_CREATED_OK",
+        "Sidebar, Generator, Ledger, Inspector, and Vault panels instantiated",
+    );
+
+    // Step 12: Initial layout positioning
+    let mut client_rect: RECT = unsafe { std::mem::zeroed() };
+    unsafe {
+        GetClientRect(hwnd, &mut client_rect);
+    }
+    let cur_w = client_rect.right - client_rect.left;
+    let cur_h = client_rect.bottom - client_rect.top;
+    let sidebar_w = 220;
+    let content_w = cur_w - sidebar_w;
+
+    if let Some(sidebar) = &app.sidebar {
+        sidebar.reposition(content_w, 0, sidebar_w, cur_h);
+    }
+    if let Some(gen) = &app.generator {
+        gen.reposition(content_w, cur_h);
+    }
+    if let Some(ledger) = &app.ledger {
+        ledger.reposition(content_w, cur_h);
+    }
+    if let Some(inspector) = &app.inspector {
+        inspector.reposition(content_w, cur_h);
+    }
+    if let Some(vault) = &app.vault {
+        vault.reposition(content_w, cur_h);
+    }
+    crate::startup_log::log_stage("LAYOUT_OK", "Initial panel layout and RTL geometry applied");
+
+    // Step 13: Show and update window
     let dark_flag: i32 = if initial_theme == ThemeMode::Dark { 1 } else { 0 };
     unsafe {
-        DwmSetWindowAttribute(
+        let hr = DwmSetWindowAttribute(
             hwnd,
-            20, // DWMWA_USE_IMMERSIVE_DARK_MODE
+            20, // DWMWA_USE_IMMERSIVE_DARK_MODE (Win10 2004+)
             &dark_flag as *const _ as *const c_void,
             4,
         );
+        if hr != 0 {
+            DwmSetWindowAttribute(
+                hwnd,
+                19, // Fallback for Win10 1809/1903
+                &dark_flag as *const _ as *const c_void,
+                4,
+            );
+        }
         ShowWindow(hwnd, SW_SHOW);
+        UpdateWindow(hwnd);
     }
+    crate::startup_log::log_stage(
+        "SHOW_WINDOW_OK",
+        "ShowWindow and UpdateWindow completed; main window is now visible",
+    );
 
-    // Message loop
+    // Step 14: Enter Win32 message loop
+    crate::startup_log::log_stage(
+        "ENTER_MSG_LOOP",
+        "Entering Win32 GetMessageW message dispatch loop",
+    );
     unsafe {
         let mut msg: MSG = std::mem::zeroed();
         while GetMessageW(&mut msg, 0 as HWND, 0, 0) > 0 {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
+        CoUninitialize();
     }
 }

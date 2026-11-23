@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use daqiq_lic_core::{
     compare_public_key, jalali_str_to_utc_iso, parse_bulk_hwids, verify_daqiq_binary_pairing,
@@ -101,10 +101,29 @@ impl AppState {
             features.insert(k.to_string(), true);
         }
 
-        let db = RegistryDb::open_in_memory().unwrap_or_else(|_| {
-            let p = PathBuf::from("daqiq_licenses.db");
-            RegistryDb::open(&p).unwrap_or_else(|_| RegistryDb::open_in_memory().unwrap())
-        });
+        let data_dir = crate::startup_log::get_app_data_dir();
+        let db_path = data_dir.join("registry.sqlite");
+
+        // Safe legacy migration: if registry.sqlite doesn't exist, check for daqiq_licenses.db
+        if !db_path.exists() {
+            let legacy_db = data_dir.join("daqiq_licenses.db");
+            if legacy_db.exists() {
+                let _ = std::fs::copy(&legacy_db, &db_path);
+            }
+        }
+
+        let db = match RegistryDb::open(&db_path) {
+            Ok(d) => d,
+            Err(_) => {
+                if db_path.exists() {
+                    let bak = db_path.with_extension("sqlite.corrupt.bak");
+                    let _ = std::fs::rename(&db_path, &bak);
+                }
+                RegistryDb::open(&db_path).unwrap_or_else(|_| {
+                    RegistryDb::open_in_memory().expect("In-memory SQLite fallback must succeed")
+                })
+            }
+        };
 
         let config = AppConfig::load();
         let theme_mode = if config.theme_mode == "light" {
