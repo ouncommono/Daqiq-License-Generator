@@ -54,6 +54,7 @@ pub fn add_jalali_months(y: i32, m: u32, d: u32, months: i32) -> (i32, u32, u32)
     (new_y, new_m, new_d)
 }
 
+#[allow(dead_code)]
 pub fn jalali_to_utc_iso_string(jalali_str: &str, end_of_day: bool) -> Result<String, String> {
     daqiq_lic_core::jalali_str_to_utc_iso(jalali_str, end_of_day)
         .map_err(|e| format!("تاریخ شمسی نامعتبر: {e}"))

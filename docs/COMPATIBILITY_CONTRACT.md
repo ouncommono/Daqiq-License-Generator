@@ -1,9 +1,9 @@
-# Daqiq Licensing Compatibility Contract (v1.1.0)
+# Daqiq Licensing Compatibility Contract (v1.4.0)
 
 **Single Source of Truth:** `https://github.com/ouncommono/Daqiq/pull/39` (Daqiq v4.9.1)  
-**Contract Version:** 1.1.0  
+**Contract Version:** 1.4.0  
 **Target Applications:**  
-- Issuer: **Daqiq License Generator v1.3.0** (`daqiq.license_generator`)  
+- Issuer: **Daqiq License Generator v1.4.0** (`daqiq.license_generator`)  
 - Consumer: **Daqiq Desktop v4.9.1** (`daqiq.desktop`)  
 - Device Request Utility: **Companion App A / In-App Exporter** (`daqiq.request_utility`)
 

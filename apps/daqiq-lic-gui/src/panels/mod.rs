@@ -1,6 +1,5 @@
 pub mod generator;
-pub mod header;
 pub mod inspector;
-pub mod registry;
+pub mod ledger;
 pub mod sidebar;
 pub mod vault;

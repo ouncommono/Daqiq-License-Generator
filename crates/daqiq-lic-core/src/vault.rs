@@ -1,8 +1,10 @@
 use std::fs;
+use std::io::{BufReader, Read};
 use std::path::Path;
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE;
 use base64::Engine;
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use hmac::Hmac;
@@ -107,6 +109,163 @@ pub fn compare_public_key(active_pub_b64: &str, candidate_b64_or_pem: &str) -> P
             expected_fp,
             actual_fp,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BinaryPairingResult {
+    Paired {
+        matched_encoding: String,
+        offset: u64,
+        public_key_fingerprint: String,
+    },
+    Mismatch {
+        detected_keys: Vec<String>,
+        active_fingerprint: String,
+        guidance_fa: String,
+    },
+    FileNotFound,
+    IoError(String),
+    InvalidActiveKey(String),
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|window| window == needle)
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+fn hex_encode_upper(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02X}", b)).collect()
+}
+
+/// Scans a compiled Daqiq executable or Python source file to determine if the active vault's
+/// public key is embedded in it (checking raw bytes, standard Base64, URL-safe Base64, and Hex).
+pub fn verify_daqiq_binary_pairing(
+    file_path: &Path,
+    active_public_key_b64: &str,
+) -> BinaryPairingResult {
+    let clean_pub = active_public_key_b64
+        .trim()
+        .replace(&['\r', '\n', ' ', '\t'][..], "");
+    let raw_bytes = match BASE64_STANDARD.decode(&clean_pub) {
+        Ok(b) if b.len() == 32 => b,
+        _ => return BinaryPairingResult::InvalidActiveKey("کلید عمومی فعال باید ۳۲ بایت Base64 معتبر باشد.".to_string()),
+    };
+
+    let active_fp = compute_key_fingerprint(&clean_pub);
+
+    // Form search targets
+    let std_b64 = clean_pub.as_bytes().to_vec();
+    let url_b64 = BASE64_URL_SAFE.encode(&raw_bytes).into_bytes();
+    let hex_lower = hex_encode(&raw_bytes).into_bytes();
+    let hex_upper = hex_encode_upper(&raw_bytes).into_bytes();
+
+    let file = match std::fs::File::open(file_path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return BinaryPairingResult::FileNotFound,
+        Err(e) => return BinaryPairingResult::IoError(format!("خطا در باز کردن فایل: {e}")),
+    };
+
+    let mut reader = BufReader::with_capacity(512 * 1024, file);
+    let mut chunk = vec![0u8; 512 * 1024];
+    let mut total_offset: u64 = 0;
+    let mut overlap = Vec::new();
+    let overlap_size = 128;
+
+    let default_prod_b64 = b"tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=";
+    let mut found_default_key = false;
+
+    loop {
+        let bytes_read = match reader.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(e) => return BinaryPairingResult::IoError(format!("خطا در خواندن فایل: {e}")),
+        };
+
+        let mut buffer = Vec::with_capacity(overlap.len() + bytes_read);
+        buffer.extend_from_slice(&overlap);
+        buffer.extend_from_slice(&chunk[..bytes_read]);
+
+        let base_offset = total_offset.saturating_sub(overlap.len() as u64);
+
+        if let Some(pos) = find_subslice(&buffer, &std_b64) {
+            return BinaryPairingResult::Paired {
+                matched_encoding: "Base64 (Standard)".to_string(),
+                offset: base_offset + pos as u64,
+                public_key_fingerprint: active_fp,
+            };
+        }
+        if let Some(pos) = find_subslice(&buffer, &raw_bytes) {
+            return BinaryPairingResult::Paired {
+                matched_encoding: "Raw 32-byte Ed25519".to_string(),
+                offset: base_offset + pos as u64,
+                public_key_fingerprint: active_fp,
+            };
+        }
+        if let Some(pos) = find_subslice(&buffer, &url_b64) {
+            return BinaryPairingResult::Paired {
+                matched_encoding: "Base64 (URL-Safe)".to_string(),
+                offset: base_offset + pos as u64,
+                public_key_fingerprint: active_fp,
+            };
+        }
+        if let Some(pos) = find_subslice(&buffer, &hex_lower) {
+            return BinaryPairingResult::Paired {
+                matched_encoding: "Hex (Lowercase)".to_string(),
+                offset: base_offset + pos as u64,
+                public_key_fingerprint: active_fp,
+            };
+        }
+        if let Some(pos) = find_subslice(&buffer, &hex_upper) {
+            return BinaryPairingResult::Paired {
+                matched_encoding: "Hex (Uppercase)".to_string(),
+                offset: base_offset + pos as u64,
+                public_key_fingerprint: active_fp,
+            };
+        }
+
+        if !found_default_key && find_subslice(&buffer, default_prod_b64).is_some() {
+            found_default_key = true;
+        }
+
+        total_offset += bytes_read as u64;
+
+        if bytes_read >= overlap_size {
+            overlap.clear();
+            overlap.extend_from_slice(&chunk[bytes_read - overlap_size..bytes_read]);
+        } else {
+            overlap.clear();
+        }
+    }
+
+    let mut detected_keys = Vec::new();
+    if found_default_key {
+        detected_keys.push(format!("daqiq-prod-v1: {}", std::str::from_utf8(default_prod_b64).unwrap_or("")));
+    }
+
+    let guidance_fa = if found_default_key {
+        format!(
+            "فایل انتخاب‌شده حاوی کلید پیش‌فرض رسمی Daqiq ({}) است، اما کلید فعال گاوصندوق شما ({}) با آن تطابق ندارد! برای رفع خطای امضا، یا کلید خصوصی متناظر را در گاوصندوق وارد کنید یا کلید عمومی فعال گاوصندوق را در فایل licensing/keys.py یا متغیر محیطی DAQIQ_PUBLIC_KEY در پروژه Daqiq قرار داده و برنامه را مجدداً کامپایل نمایید.",
+            compute_key_fingerprint(std::str::from_utf8(default_prod_b64).unwrap_or("")),
+            active_fp
+        )
+    } else {
+        format!(
+            "هیچ نشانه‌ای از کلید فعال مخزن ({}) در فایل انتخابی یافت نشد. لطفاً مطمئن شوید که فایل انتخاب‌شده مربوط به نسخه ۴.۹.۱ نرم‌افزار Daqiq است.",
+            active_fp
+        )
+    };
+
+    BinaryPairingResult::Mismatch {
+        detected_keys,
+        active_fingerprint: active_fp,
+        guidance_fa,
     }
 }
 
@@ -331,5 +490,36 @@ mod tests {
         // Invalid key
         let res_invalid = compare_public_key(active_pub, "not-a-valid-base64-key");
         assert!(matches!(res_invalid, PublicKeyMatchResult::Invalid(_)));
+    }
+
+    #[test]
+    fn test_verify_daqiq_binary_pairing_test() {
+        let (vault, _env) = KeyVault::create_vault("daqiq-prod-v1", "SecretPass123").unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        // 1. Matched Base64 file
+        let match_file = temp_dir.path().join("mock_daqiq_matched.exe");
+        let content = format!("some binary prefix ... {} ... suffix", vault.public_key_b64);
+        fs::write(&match_file, content).unwrap();
+
+        let res = verify_daqiq_binary_pairing(&match_file, &vault.public_key_b64);
+        assert!(matches!(res, BinaryPairingResult::Paired { .. }));
+
+        // 2. Mismatch file containing default Daqiq key
+        let mismatch_file = temp_dir.path().join("mock_daqiq_default.exe");
+        let def_key = "tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=";
+        fs::write(&mismatch_file, format!("prefix {def_key} suffix")).unwrap();
+
+        if vault.public_key_b64 != def_key {
+            let res_mis = verify_daqiq_binary_pairing(&mismatch_file, &vault.public_key_b64);
+            assert!(matches!(res_mis, BinaryPairingResult::Mismatch { .. }));
+        }
+
+        // 3. File not found
+        let not_found_res = verify_daqiq_binary_pairing(
+            &temp_dir.path().join("does_not_exist.exe"),
+            &vault.public_key_b64,
+        );
+        assert_eq!(not_found_res, BinaryPairingResult::FileNotFound);
     }
 }

@@ -22,5 +22,6 @@ pub use schema::{
     ALL_FEATURE_KEYS, DEFAULT_KEY_ID, DEFAULT_PRODUCT_ID, DEFAULT_PROD_PUBLIC_KEY,
 };
 pub use vault::{
-    compare_public_key, compute_key_fingerprint, KeyVault, PublicKeyMatchResult, VaultEnvelope,
+    compare_public_key, compute_key_fingerprint, verify_daqiq_binary_pairing, BinaryPairingResult,
+    KeyVault, PublicKeyMatchResult, VaultEnvelope,
 };
