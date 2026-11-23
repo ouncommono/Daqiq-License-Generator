@@ -1,11 +1,11 @@
-# Daqiq Licensing Compatibility Contract (v1.0.0)
+# Daqiq Licensing Compatibility Contract (v1.1.0)
 
-**Single Source of Truth:** `https://github.com/ouncommono/Daqiq/pull/38` (Daqiq v4.9.0)  
-**Contract Version:** 1.0.0  
+**Single Source of Truth:** `https://github.com/ouncommono/Daqiq/pull/39` (Daqiq v4.9.1)  
+**Contract Version:** 1.1.0  
 **Target Applications:**  
-- Issuer: **Daqiq License Generator v1.0.0** (`daqiq.license_generator`)  
-- Consumer: **Daqiq Desktop v4.9.0** (`daqiq.desktop`)  
-- Device Request Utility: **Companion App A** (`daqiq.request_utility`)
+- Issuer: **Daqiq License Generator v1.3.0** (`daqiq.license_generator`)  
+- Consumer: **Daqiq Desktop v4.9.1** (`daqiq.desktop`)  
+- Device Request Utility: **Companion App A / In-App Exporter** (`daqiq.request_utility`)
 
 ---
 
@@ -13,6 +13,7 @@
 
 ### 1.1 Envelope Structure
 The `.daqlic` file is an offline JSON document encoded in **UTF-8 without BOM**, limited to a maximum file size of **65,536 bytes (64 KiB)**.
+Alternatively, the license can be pasted directly into Daqiq Desktop as a **Compact Text Token** (Base64-encoded UTF-8 string of the entire envelope JSON starting with `eyJ...`).
 
 ```json
 {
@@ -25,9 +26,9 @@ The `.daqlic` file is an offline JSON document encoded in **UTF-8 without BOM**,
     "license_id": "LIC-2026-000001",
     "key_id": "daqiq-prod-v1",
     "customer": {
+      "contact": "+989120000000",
       "name": "نام مشتری یا فروشگاه",
-      "organization": "مجموعه نمونه (اختیاری)",
-      "contact": "+989120000000"
+      "organization": "مجموعه نمونه (اختیاری)"
     },
     "license_type": "subscription",
     "issued_at": "2026-11-22T00:00:00Z",
@@ -37,29 +38,38 @@ The `.daqlic` file is an offline JSON document encoded in **UTF-8 without BOM**,
     "device_fingerprints": [
       "fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e"
     ],
+    "match_policy": "standard",
+    "grace_period_days": 7,
+    "grace_mode": "readonly",
+    "expiry_warning_days": 14,
+    "max_clock_skew_hours": 24,
     "features": {
-      "dashboard": true,
-      "products": true,
       "batches": true,
+      "dashboard": true,
+      "employees": true,
+      "products": true,
+      "reports": true,
       "sales": true,
       "services": true,
-      "upgrades": true,
+      "settings": true,
       "suppliers_payments": true,
-      "reports": true,
-      "employees": true,
-      "settings": true
+      "upgrades": true
     },
     "min_app_version": "4.9.0",
-    "max_app_version": null
+    "max_app_version": null,
+    "quotas": {},
+    "metadata": {}
   },
   "signature": "<base64-standard-rfc4648-64-byte-ed25519-signature>"
 }
 ```
 
 ### 1.2 Cryptographic Parameters
-- **Algorithm:** Ed25519 (Edwards-curve Digital Signature Algorithm over Curve25519, RFC 8032).
+- **Algorithm:** Ed25519 (RFC 8032).
 - **Public Key Representation:** Raw 32 bytes encoded in standard Base64 (e.g. `tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=`). In Daqiq Desktop, registered in `licensing/keys.py` within `DEFAULT_KEY_REGISTRY`.
-- **Private Key Storage:** Never stored in plaintext. Encrypted in vendor vault files using AES-256-GCM with PBKDF2-HMAC-SHA256 (600,000 iterations) or Scrypt key derivation.
+- **Public Key Fingerprint:** Deterministic 12-hex character prefix of SHA-256 over raw public key bytes:
+  $$\text{fingerprint} = \text{hex}(\text{SHA256}(\text{raw\_pub\_bytes}))[0..12]$$
+- **Secret Signing Key Storage:** Never stored in plaintext. Encrypted in vendor vault files using AES-256-GCM with PBKDF2-HMAC-SHA256 (600,000 iterations). Memory zeroized on drop.
 - **Domain Separation Prefix:**
   ```python
   DOMAIN_PREFIX = b"DAQIQ-LICENSE-V1\n"
@@ -67,9 +77,9 @@ The `.daqlic` file is an offline JSON document encoded in **UTF-8 without BOM**,
 - **Signature Encoding:** Standard Base64 (RFC 4648), exactly 64 raw bytes decoding from 88 Base64 characters (with `=` padding).
 
 ### 1.3 Canonical Serialization Algorithm
-To guarantee byte-for-byte reproducibility across all platforms:
+To guarantee byte-for-byte reproducibility across Python and Rust:
 1. **Type Strictness:** Payload must contain only `dict`, `list`, `str`, `int`, `bool`, and `None`. Floats (`float`), `NaN`, and `Infinity` are strictly forbidden and rejected.
-2. **Unicode Normalization:** Recursively normalize all dictionary keys and string values to **Unicode Normalization Form C (NFC)** via `unicodedata.normalize("NFC", text)`.
+2. **Unicode Normalization:** Recursively normalize all dictionary keys and string values to **Unicode Normalization Form C (NFC)**.
 3. **JSON Serialization:**
    ```python
    canonical_bytes = json.dumps(
@@ -79,101 +89,80 @@ To guarantee byte-for-byte reproducibility across all platforms:
        ensure_ascii=False,
    ).encode("utf-8")
    ```
-4. **Signing Payload Construction:**
+4. **Field Omission vs Null Invariant:**
+   - In `CustomerInfo`: `contact` and `organization` MUST serialize as `null` when unset.
+   - In `LicensePayload`: `expires_at`, `min_app_version`, and `max_app_version` MUST serialize as `null` when unset.
+   - Advanced PR #39 fields (`match_policy`, `grace_period_days`, `grace_mode`, `expiry_warning_days`, `max_clock_skew_hours`, `quotas`, `metadata`) are **omitted** from the dictionary when unset (matching `if self.field is not None:` in `LicensePayload.to_dict()`).
+5. **Signing Payload Construction:**
    ```python
    message_to_sign = DOMAIN_PREFIX + canonical_bytes
    signature = private_key.sign(message_to_sign)
    signature_b64 = base64.b64encode(signature).decode("ascii")
    ```
-5. **Daqiq Verification Parity:**
-   In Daqiq Desktop (`licensing/license_verifier.py`), the verified payload dictionary is constructed strictly from `LicensePayload.to_dict()`, ensuring the exact 14 payload fields are serialized during verification.
 
 ---
 
-## 2. Payload Field Specification (14 Strict Fields)
+## 2. Payload Field Specification (PR #39 Parity)
 
-| Field Name | Type | Allowed Values | Description |
+| Field Name | Type | Allowed Values | Null Behavior | Description |
+|---|---|---|---|---|
+| `format_version` | Integer | `1` | Required | Schema version identifier. |
+| `product_id` | String | `"daqiq.desktop"` | Required | Target application identifier. |
+| `license_id` | String | Non-empty ASCII/Unicode | Required | Unique vendor license number (e.g. `LIC-2026-000001`). |
+| `key_id` | String | Non-empty ASCII | Required | Key ID matching `DEFAULT_KEY_REGISTRY` (`daqiq-prod-v1`). |
+| `customer.name` | String | Non-empty Unicode NFC | Required | Customer name in Persian or Latin. |
+| `customer.organization` | String / Null | Unicode NFC or `null` | Serializes as `null` | Organization name. |
+| `customer.contact` | String / Null | ASCII/Unicode or `null` | Serializes as `null` | Support phone, email, or contact ID. |
+| `license_type` | String | `"perpetual"`, `"subscription"`, `"trial"` | Required | License commercial model. |
+| `issued_at` | String | ISO-8601 UTC (`...Z`) | Required | Creation timestamp. |
+| `not_before` | String | ISO-8601 UTC (`...Z`) | Required | Start of validity. |
+| `expires_at` | String / Null | ISO-8601 UTC or `null` | Serializes as `null` | Expiration timestamp (`null` for perpetual). |
+| `max_devices` | Integer | $\ge 1$ | Required | Maximum allowed hardware nodes. |
+| `device_fingerprints` | List[String] | Array of `fp_v1:...` | Required | Distinct hardware fingerprints ($1 \le N \le \text{max\_devices}$). |
+| `features` | Dict[str, bool] | 10 boolean flags | Required | Feature flags for tabs 0 through 9. |
+| `min_app_version` | String / Null | Semver or `null` | Serializes as `null` | Minimum compatible application version. |
+| `max_app_version` | String / Null | Semver or `null` | Serializes as `null` | Maximum compatible application version. |
+| `match_policy` | String / Null | `"strict"`, `"standard"`, `"relaxed"` | Omitted if unset | Node-lock matching tier policy. |
+| `grace_period_days` | Integer / Null | $\ge 0$ | Omitted if unset | Grace period days after expiration. |
+| `grace_mode` | String / Null | `"readonly"`, `"full"` | Omitted if unset | Behavior during grace period. |
+| `expiry_warning_days` | Integer / Null | $\ge 0$ | Omitted if unset | Advance warning banner days before expiry. |
+| `max_clock_skew_hours` | Integer / Null | $\ge 0$ | Omitted if unset | Backward clock-skew tolerance in hours. |
+| `quotas` | Dict / Null | Object or omitted | Omitted if unset | Extensible numeric quotas. |
+| `metadata` | Dict / Null | Object or omitted | Omitted if unset | Extensible key-value metadata. |
+
+---
+
+## 3. The 10 Commercial Application Features
+
+| Feature Key | Application Tab | Persian Title | Default in Generator |
 |---|---|---|---|
-| `format_version` | Integer | `1` | Schema version identifier. |
-| `product_id` | String | `"daqiq.desktop"` | Target application identifier. |
-| `license_id` | String | Non-empty ASCII/Unicode | Unique vendor license number (e.g. `DQL-1405-0001` or `LIC-2026-000001`). |
-| `key_id` | String | Non-empty ASCII | Identifier of the Ed25519 public key registered in Daqiq's `KeyRegistry`. |
-| `customer.name` | String | Non-empty string | Customer or store name in Persian/English (NFC normalized). |
-| `customer.organization` | String / Null | Optional string | Organization or commercial branch name. |
-| `customer.contact` | String / Null | Optional string | Support phone, email, or contact ID. |
-| `license_type` | String | `"perpetual"` or `"subscription"` | Licensing model. |
-| `issued_at` | String | ISO-8601 UTC (`YYYY-MM-DDTHH:MM:SSZ`) | License issuance timestamp. |
-| `not_before` | String | ISO-8601 UTC (`YYYY-MM-DDTHH:MM:SSZ`) | Validity start timestamp. |
-| `expires_at` | String / Null | `null` for perpetual; ISO-8601 UTC for subscription | Expiration timestamp (`expires_at > not_before`). |
-| `max_devices` | Integer | Integer `>= 1` | Maximum authorized hardware devices. |
-| `device_fingerprints` | List[String] | Array of `fp_v1:<64-hex>` | List of unique hardware IDs. `1 <= len <= max_devices`. |
-| `features` | Dict[str, bool] | 10 boolean flags | Map of feature identifiers to boolean authorization. |
-| `min_app_version` | String / Null | e.g. `"4.9.0"` or `null` | Minimum required version of Daqiq Desktop. |
-| `max_app_version` | String / Null | e.g. `"5.0.0"` or `null` | Maximum allowed version of Daqiq Desktop. |
+| `dashboard` | Tab 0 | 📊 داشبورد | `true` |
+| `products` | Tab 1 | 📦 مدیریت کالاها | `true` |
+| `batches` | Tab 2 | 🚚 ثبت خرید و محموله‌ها | `true` |
+| `sales` | Tab 3 | 🛒 ثبت فروش | `true` |
+| `services` | Tab 4 | 🛠️ میز خدمت | `true` |
+| `upgrades` | Tab 5 | 🔧 ارتقای کالا | `true` |
+| `suppliers_payments` | Tab 6 | 💳 تأمین‌کنندگان | `true` |
+| `reports` | Tab 7 | 📈 گزارش‌های جامع | `true` |
+| `employees` | Tab 8 | 👤 مدیریت کاربران | `true` |
+| `settings` | Tab 9 | ⚙️ تنظیمات | `true` |
 
 ---
 
-## 3. Hardware Fingerprint Specification (`fp_v1`)
+## 4. Hardware ID Format & Validation Rules
 
-### 3.1 Syntax & Format
-- **Pattern:** `^fp_v1:[0-9a-f]{64}$`
-- **Prefix:** `fp_v1:`
-- **Hash Algorithm:** SHA-256 over `DAQIQ-HWFP-V1|<CANONICAL_STRING>`
-- **Normalization:** Uppercase ASCII, single-space collapsed, trimmed, NFC normalized.
-
-### 3.2 Canonical Component Construction
-- **Tier 1 (UUID + Motherboard Serial):**  
-  `V1|UUID=<UUID>|BOARD=<SERIAL>`
-- **Tier 2 (UUID + Motherboard Model):**  
-  `V1|UUID=<UUID>|BOARD_MODEL=<MFG>:<PROD>`
-- **Tier 3 (Motherboard Serial + Motherboard Model):**  
-  `V1|BOARD=<SERIAL>|BOARD_MODEL=<MFG>:<PROD>`
-
-### 3.3 OEM Placeholder Blacklist
-- **UUIDs Rejected:** Empty, `00000000-0000-0000-0000-000000000000`, `ffffffff-ffff-ffff-ffff-ffffffffffff`, `03000200-0400-0500-0006-000700080009`, repeated characters.
-- **Board Serials Rejected:** Empty, `none`, `n/a`, `na`, `not applicable`, `not specified`, `default string`, `to be filled by o.e.m.`, `system serial number`, `chassis serial number`, `base board serial number`, `oem`, `invalid`, `unknown`, `0`, `00000000`, `123456789`, repeated single characters.
-
----
-
-## 4. Feature Entitlements & Tab Mapping (10 Modules)
-
-| Feature Key | Daqiq Module / Tab | Description |
-|---|---|---|
-| `dashboard` | 📊 داشبورد | Overview dashboard, KPIs, quick metrics |
-| `products` | 📦 مدیریت کالاها | Inventory and product catalog |
-| `batches` | 🚚 ثبت خرید و محموله‌ها | Procurement batches and suppliers |
-| `sales` | 🛒 ثبت فروش | Point-of-sale, invoicing, barcode checkouts |
-| `services` | 🛠️ میز خدمت | Repair services, warranty tracking |
-| `upgrades` | 🔧 ارتقای کالا | Assembly, hardware upgrades, parts consumption |
-| `suppliers_payments` | 💳 تأمین‌کنندگان | Supplier balance and settlement ledger |
-| `reports` | 📈 گزارش‌های جامع | Financial reports, sales history, audit logs |
-| `employees` | 👤 مدیریت کاربران | User roles, permissions, cashier accounts |
-| `settings` | ⚙️ تنظیمات | App configuration, backup/restore, tax settings |
-
----
-
-## 5. Device Request Contract (`.daqreq`)
-
-When a client exports system hardware specifications:
-```json
-{
-  "request_version": 1,
-  "product_id": "daqiq.desktop",
-  "generated_at": "2026-11-22T00:00:00Z",
-  "device_fingerprint": "fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e",
-  "device_label": "صندوق اصلی فروشگاه (Main Terminal)",
-  "app_version": "4.9.0",
-  "hardware_tier": "tier1"
-}
-```
-
----
-
-## 6. Official Golden Test Vector (Spec Section 3.2 Parity)
-
-- **Test Public Key (Base64 raw 32 bytes):**  
-  `tZwFxuCGOF+WZqVF+PeKwpoIpOZovHLFRVSQxGaXJXA=`
-- **Domain Separated Message SHA-256 Digest:**  
-  `52bdf69ad45d565685bae87f75c03d4a5baa43a3acafe785499b16ee5618366a`
-- **Ed25519 Signature (Base64):**  
-  `kgrF5f89h9JBIHiQ55H5J+jZul3ZwC6NdeEDXtrlxMDWWlBr892vliqLsTxPD0q+RlEJaXsIQZUSjaevKSGjCA==`
+- **Format:** `fp_v1:<64-lowercase-hex>` (SHA-256 of `DAQIQ-HWFP-V1|<CANONICAL_STRING>`).
+- **Sanitization:** Strip leading/trailing whitespace, quotes, and invisible Persian Unicode characters (LRM `\u200E`, RLM `\u200F`, ZWNJ `\u200C`, ZWJ `\u200D`).
+- **Validation:** Case-insensitive prefix `fp_v1:` followed by exactly 64 hexadecimal characters.
+- **Request File Format (`.daqreq`):**
+  ```json
+  {
+    "request_version": 1,
+    "product_id": "daqiq.desktop",
+    "generated_at": "2026-11-22T00:00:00Z",
+    "device_fingerprint": "fp_v1:b8782278c4c15107a8fd2a5d21718e3328c8baeac5d1a3f0664701ac2983e52e",
+    "device_label": "دفتر فروش - صندوق ۱",
+    "app_version": "4.9.1",
+    "hardware_tier": "tier1"
+  }
+  ```
